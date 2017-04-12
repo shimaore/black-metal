@@ -1,29 +1,14 @@
-    @name = 'black-metal'
+    @name = 'black-metal:queuer'
     seem = require 'seem'
 
     uuidV4 = require 'uuid/v4'
-    FS = require 'esl'
     debug = (require 'debug') @name
-
-    api = (cmd) ->
-      debug 'api', cmd
-      new Promise (resolve,reject) ->
-        try
-          client = FS.client ->
-            debug 'api: sending', cmd
-            @api cmd
-            .then resolve, reject
-          client.connect (cfg.socket_port ? 5722), '127.0.0.1'
-          debug 'api: client connected'
-        catch error
-          debug 'api: error', error
-          reject error
 
     make_id = ->
       now = new Date() .toJSON()
       now[0...8] + uuidV4()
 
-    module.exports = make_queuer = (redis,policy_for,egress_call_for,profile) ->
+    module.exports = make_queuer = (redis,policy_for,egress_call_for,profile,api) ->
 
       class Pool
         constructor: (@name) ->
@@ -96,12 +81,14 @@ class Call: a call from or towards a customer
         originate: seem ->
           debug 'Call.originate', @destination
           id = make_id()
-          yield api "originate {origination_uuid=#{id}}sofia/#{profile}/#{@destination} &park"
           # FIXME: CDRs etc.?
-          id
+          if yield api "originate {origination_uuid=#{id}}sofia/#{profile}/#{@destination} &park"
+            id
+          else
+            null
 
         present: seem (agent) ->
-          debug 'Call.present', agent
+          debug 'Call.present', agent.key
           @presenting = true
 
           try
@@ -112,16 +99,19 @@ For a dial-out (egress) call we first need to attempt to contact the destination
 
 We need to send the call to the agent (using either mode A or mode B).
 
-            agent_id = yield agent.is_off_hook_agent()
+            agent_id = yield agent.is_offhook_agent()
             agent_id ?= yield agent.originate()
 
-            res = yield api "uuid_bridge #{@id} #{agent_id}"
+            if @id? and agent_id? and yield api "uuid_bridge #{@id} #{agent_id}"
 
-            yield agent.transition 'answer'
-            for cb in @answered_cb
-              yield cb()
-            @answered_cb = []
-            true
+              yield agent.transition 'answer'
+              for cb in @answered_cb
+                yield cb()
+              @answered_cb = []
+              true
+
+            else
+              null
 
           catch error
             debug "Call.present: #{error.stack ? error}"
@@ -248,7 +238,7 @@ An egress pool is a set of dynamically constructed call instances (for example u
           yield @create_egress_call_for agent
 
         report_non_idle: (agent) ->
-          debug 'Queuer.report_non_idle', agent
+          debug 'Queuer.report_non_idle', agent.key
           @possibly_idle_agents.remove agent
 
         reevaluate_idle_agents: ->
@@ -264,7 +254,7 @@ An egress pool is a set of dynamically constructed call instances (for example u
             yield @queue_egress_call call
 
         on_agent: seem (agent,state) ->
-          debug 'Queuer.on_agent', agent, state
+          debug 'Queuer.on_agent', agent.key, state
           if state is 'idle'
             if yield @on_agent_idle agent
               yield @report_idle agent
@@ -294,10 +284,10 @@ Agent States
 
         accept_off_hook_agent: seem (agent,call_uuid) ->
           if yield agent.transition 'login'
-            yield agent.is_off_hook_agent call_uuid
+            yield agent.is_offhook_agent call_uuid
 
         accept_on_hook_agent: seem (agent) ->
-          id = yield agent.is_off_hook_agent()
+          id = yield agent.is_offhook_agent()
           if id?
             @disconnect_call id?
 
@@ -345,8 +335,8 @@ Agent
           else
             return false
 
-        is_off_hook_agent: seem (call_uuid) ->
-          debug 'Agent.is_off_hook_agent', call_uuid
+        is_offhook_agent: seem (call_uuid) ->
+          debug 'Agent.is_offhook_agent', call_uuid
           if call_uuid?
             yield @set_id call_uuid
           else
@@ -355,8 +345,10 @@ Agent
         originate: seem ->
           debug 'Agent.originate'
           id = make_id()
-          yield api "originate {origination_uuid=#{id}}sofia/#{profile}/#{@key} &park"
-          id
+          if yield api "originate {origination_uuid=#{id}}sofia/#{profile}/#{@key} &park"
+            id
+          else
+            null
 
         topmost: seem (pool) ->
           debug 'Agent.topmost', pool.name

@@ -49,8 +49,12 @@
           else
             Promise.resolve null
 
+      api = (cmd) ->
+        console.log 'api', cmd
+        true
+
       profile = 'booh!'
-      {Agent,Queuer} = (require '..') redis, policy_for, egress_call_for, profile
+      {Agent,Queuer} = (require '../queuer') redis, policy_for, egress_call_for, profile, api
       key = 'lalala'
 
       it 'should increment external calls', seem ->
