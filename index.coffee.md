@@ -55,6 +55,8 @@ class Call: a call from or towards a customer
        class Call
         constructor: ({@destination,@id,tags = []}) ->
           debug 'new Call', @destination, @id, tags
+          unless @destination? or @id?
+            throw new Error 'new Call: either destination or id is required'
           @tags = new Set tags
           @init_priority()
           @init_skills()
@@ -212,15 +214,19 @@ The `agent_pool` contains (at least the topmost) calls matching for this agent.
           debug 'Queuer.on_agent_idle: ingress pool', agent.key
           call = yield agent.topmost @ingress_pool
           if call?
+            debug 'Queuer.on_agent_idle present ingress call', agent.key
             yield agent.present call
+            return false
 
           debug 'Queuer.on_agent_idle: egress pool', agent.key
-          call = agent.topmost @egress_pool
+          call = yield agent.topmost @egress_pool
           if call?
+            debug 'Queuer.on_agent_idle present egress call', agent.key
             yield agent.present call
+            return false
 
-          yield @report_idle agent
-          return
+          debug 'Queuer.on_agent_idle no call', agent.key
+          return true
 
 Note: it's OK for agent.filter_and_sort to throw away calls that will not make it to the top, since only the first element of the resulting pool will ever be used.
 
@@ -237,7 +243,7 @@ An egress pool is a set of dynamically constructed call instances (for example u
           @reevaluate_idle_agents()
 
         report_idle: seem (agent) ->
-          debug 'Queuer.report_idle'
+          debug 'Queuer.report_idle', agent.key
           yield @possibly_idle_agents.add agent
           yield @create_egress_call_for agent
 
@@ -252,17 +258,18 @@ An egress pool is a set of dynamically constructed call instances (for example u
             @on_agent_idle agent
 
         create_egress_call_for: seem (agent) ->
-          debug 'Queuer.create_egress_call_for', agent
+          debug 'Queuer.create_egress_call_for', agent.key
           call = yield agent.create_egress_call()
           if call?
             yield @queue_egress_call call
 
-        on_agent: (agent,state) ->
+        on_agent: seem (agent,state) ->
           debug 'Queuer.on_agent', agent, state
           if state is 'idle'
-            @on_agent_idle agent
+            if yield @on_agent_idle agent
+              yield @report_idle agent
           else
-            @report_non_idle agent
+            yield @report_non_idle agent
 
 Agent behavior
 --------------
@@ -328,7 +335,7 @@ Agent
 
           debug 'Agent.transition', event, old_state
           return false unless event of agent_transition[old_state]
-          new_state = yield agent_transition[old_state][event]
+          new_state = agent_transition[old_state][event]
 
           debug 'Agent.transition', event, old_state, new_state
           if new_state?
@@ -352,7 +359,7 @@ Agent
           id
 
         topmost: seem (pool) ->
-          debug 'Agent.topmost', pool
+          debug 'Agent.topmost', pool.name
           policy = yield policy_for this
 
 ignore ringing calls
@@ -362,26 +369,29 @@ ignore ringing calls
         create_egress_call: seem ->
           debug 'Agent.create_egress_call'
           data = yield egress_call_for this
+          debug 'Agent.create_egress_call', data
           if data?
             new Call data
           else
             null
 
-        present: (call) ->
+        present: seem (call) ->
           debug 'Agent.present', call
           if yield @transition 'new_queuer_call'
-            call.present this
+            yield call.present this
 
         get_state: ->
           redis.hgetAsync @key, 'state'
 
         set_state: (state) ->
+          debug 'Agent.set_state', state
           redis.hsetAsync @key, 'state', state
 
         get_id: ->
           redis.hgetAsync @key, 'id'
 
         set_id: (id) ->
+          debug 'Agent.set_id', state
           redis.hsetAsync @key, 'id', id
 
         incr_value: (field) ->

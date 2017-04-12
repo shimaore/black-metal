@@ -6,40 +6,48 @@
       redis =
         _: {}
         hincrbyAsync: (key,field,increment) ->
-          console.log key, field, increment
+          console.log 'hincr', key, field, increment
           redis._[key] ?= {}
           redis._[key][field] ?= 0
           Promise.resolve redis._[key][field] += increment
         hsetAsync: (key,field,value) ->
-          console.log key, field, value
+          console.log 'hset', key, field, value
           redis._[key] ?= {}
           Promise.resolve redis._[key][field] = value
         hgetAsync: (key,field) ->
-          console.log key, field
+          console.log 'hget', key, field
           redis._[key] ?= {}
           Promise.resolve redis._[key][field]
         saddAsync: (key,member) ->
+          console.log 'sadd', key, member
           redis._[key] ?= new Set
           redis._[key].add member
           Promise.resolve 1
         sremAsync: (key,member) ->
+          console.log 'srem', key, member
           redis._[key] ?= new Set
           redis._[key].delete member
           Promise.resolve 1
         sscan: (key,cursor) ->
+          console.log 'sscan', key, cursor
           keys = []
           redis._[key].forEach (key) -> keys.push key
-          ["0",keys]
+          Promise.resolve ["0",keys]
       policy_for = (agent) ->
-        ->
-          agent.name is 'lululu'
+        (calls) ->
+          console.log 'policy_for…'
+          if agent.key is 'lululu'
+            calls[0]
+          else
+            null
 
       egress_call_for = (agent) ->
-          switch agent.key
-            when 'lululu'
-              Promise.resolve direction: '33643482771'
-            else
-              Promise.resolve null
+        console.log 'egress_call_for', agent.key
+        switch agent.key
+          when 'lululu'
+            Promise.resolve destination: '33643482771'
+          else
+            Promise.resolve null
 
       profile = 'booh!'
       {Agent,Queuer} = (require '..') redis, policy_for, egress_call_for, profile
