@@ -1,48 +1,49 @@
     chai = require 'chai'
     chai.should()
     seem = require 'seem'
+    debug = (require 'debug') 'black-metal:test:agent'
 
     describe 'The Agent', ->
       redis =
         _: {}
         hincrbyAsync: (key,field,increment) ->
-          console.log 'hincr', key, field, increment
+          debug 'hincr', key, field, increment
           redis._[key] ?= {}
           redis._[key][field] ?= 0
           Promise.resolve redis._[key][field] += increment
         hsetAsync: (key,field,value) ->
-          console.log 'hset', key, field, value
+          debug 'hset', key, field, value
           redis._[key] ?= {}
           Promise.resolve redis._[key][field] = value
         hgetAsync: (key,field) ->
-          console.log 'hget', key, field
+          debug 'hget', key, field
           redis._[key] ?= {}
           Promise.resolve redis._[key][field]
         saddAsync: (key,member) ->
-          console.log 'sadd', key, member
+          debug 'sadd', key, member
           redis._[key] ?= new Set
           redis._[key].add member
           Promise.resolve 1
         sremAsync: (key,member) ->
-          console.log 'srem', key, member
+          debug 'srem', key, member
           redis._[key] ?= new Set
           redis._[key].delete member
           Promise.resolve 1
         sscan: (key,cursor) ->
-          console.log 'sscan', key, cursor
+          debug 'sscan', key, cursor
           keys = []
           redis._[key].forEach (key) -> keys.push key
           Promise.resolve ["0",keys]
       policy_for = (agent) ->
         (calls) ->
-          console.log 'policy_for…'
+          debug 'policy_for…'
           if agent.key is 'lululu'
             calls[0]
           else
             null
 
       egress_call_for = (agent) ->
-        console.log 'egress_call_for', agent.key
+        debug 'egress_call_for', agent.key
         switch agent.key
           when 'lululu'
             Promise.resolve destination: '33643482771'
@@ -50,7 +51,7 @@
             Promise.resolve null
 
       api = (cmd) ->
-        console.log 'api', cmd
+        debug 'api', cmd
         true
 
       profile = 'booh!'
@@ -67,12 +68,14 @@
       it 'should transition', seem ->
         queuer = new Queuer()
         agent = new Agent queuer, key
-        yield agent.transition 'login'
+        ok = yield agent.transition 'login'
+        ok.should.be.true
         redis._.lalala.should.have.property 'state', 'idle'
         chai.expect(redis._['possibly-idle'].has 'lalala').to.be.true
 
       it 'should trigger call', seem ->
         queuer = new Queuer()
         agent = new Agent queuer, 'lululu'
-        yield agent.transition 'login'
-
+        ok = yield agent.transition 'login'
+        ok.should.be.true
+        redis._.lululu.should.have.property 'state', 'in_call'

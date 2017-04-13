@@ -1,7 +1,7 @@
 {
   "name": "black-metal",
   "version": "0.0.1",
-  "description": "Call-center queuer for huge-play",
+  "description": "Call-center queuer (inbound & outbound) for CCNQ4",
   "main": "index.js",
   "scripts": {
     "test": "mocha"

@@ -155,13 +155,13 @@ if an agent isn't idle anymore, remove it
               debug 'PossiblyIdleAgents.reevaluate state', key, state
               if state isnt 'idle'
 
-                @remove agent
+                yield @remove agent
 
 otherwise call the cb (in order) for any remaining agent
 
               else
 
-                cb agent
+                yield cb agent
 
       class Queuer
 
@@ -220,17 +220,17 @@ The `agent_pool` contains (at least the topmost) calls matching for this agent.
 
 Note: it's OK for agent.filter_and_sort to throw away calls that will not make it to the top, since only the first element of the resulting pool will ever be used.
 
-        queue_ingress_call: (call) ->
+        queue_ingress_call: seem (call) ->
           debug 'Queuer.queue_ingress_call'
-          @ingress_pool.add call
-          @reevaluate_idle_agents()
+          yield @ingress_pool.add call
+          yield @reevaluate_idle_agents()
 
 An egress pool is a set of dynamically constructed call instances (for example using an iterator). The topmost call instance is created using data found e.g. in a database, the (egress) call is placed in the pool, and the idle agents are re-evaluated.
 
-        queue_egress_call: (call) ->
+        queue_egress_call: seem (call) ->
           debug 'Queuer.queue_egress_call'
-          @egress_pool.add call
-          @reevaluate_idle_agents()
+          yield @egress_pool.add call
+          yield @reevaluate_idle_agents()
 
         report_idle: seem (agent) ->
           debug 'Queuer.report_idle', agent.key
