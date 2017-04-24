@@ -27,6 +27,7 @@ The policy is:
 - if at least one queue is listed, the agent must accept calls from (one of) these queue(s)
 
         call_queues = queues call_tags
+        debug 'Checking agent for queues', call.key, @key, call_queues
         if call_queues.length > 0
           ok = false
           for queue_tag in call_queues when not ok
@@ -39,6 +40,7 @@ The policy is:
 - the agent must have all the skills listed for the call
 
         call_required_skills = skills call_tags
+        debug 'Checking agent for skills', call.key, @key, call_required_skills
         for skill_tag in call_required_skills
           unless @has_tag skill_tag
             debug 'No skill match', call.key, @key, skill_tag
@@ -83,18 +85,21 @@ Keep the highest priority value
             -1
           else
             b-a
+      debug 'priority', priorities[0]
       priorities[0] ? null
 
     skills = (tags) ->
       debug 'skills'
       result = []
       tags.forEach (tag) -> result.push tag if tag.match /^skill:/
+      debug 'skills', result
       result
 
     queues = (tags) ->
       debug 'queues'
       result = []
       tags.forEach (tag) -> result.push tag if tag.match /^queue:/
+      debug 'queues', result
       result
 
     in_domain = (tags,domain) ->
