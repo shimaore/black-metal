@@ -122,6 +122,8 @@ This next line is redundant with what happens in `report_non_idle`, I guess.
 
               yield @egress_agents.remove agent
 
+              yield agent.notify? 'present', remote_number: yield call.get_remote_number()
+
               if yield agent.present call
                 yield pool.remove call
                 monitor = yield call.monitor()

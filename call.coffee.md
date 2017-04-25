@@ -76,7 +76,7 @@ Agent in off-hook mode
 Agent in on-hook mode
 
         id = @key
-        source = yield caller.get 'source'
+        source = yield caller.get_remote_number()
         source ?= 'caller'
         params = make_params
           origination_uuid: id
@@ -168,6 +168,12 @@ with the gentones notifications.
 
       presenting: seem ->
         yield @has_tag 'presenting'
+
+      set_remote_number: (number) ->
+        @set 'remote-number', number
+
+      get_remote_number: ->
+        @get 'remote_number'
 
 Present
 -------
