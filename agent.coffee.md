@@ -51,9 +51,10 @@ Monitor other calls for this agent, keeping state.
 
         removed = yield @remove id
 
-        if id is yield @is_offhook_agent()
+        offhook_call = yield @get_offhook_call()
+        if offhook_call? and id is offhook_call.id
           debug 'Agent.del_call: logout for offhook agent call'
-          yield @set_id null
+          yield @set_offhook_call null
           yield @transition 'logout'
           return
 
@@ -95,31 +96,27 @@ Handle transitions
         else
           return false
 
-      is_offhook_agent: seem ->
-        debug 'Agent.is_offhook_agent'
-        result = yield @get_id()
-        debug 'Agent.is_offhook_agent', result
-        result
-
       __hangup_offhook: seem ->
-        debug 'Agent.hangup_offhook'
-        id = yield @is_offhook_agent()
-        if id?
-          debug 'Agent.hangup_offhook', id
-          call = @new_call {id}
-          yield call.hangup()
-          yield @del_call id
-        id
+        debug 'Agent.__hangup_offhook'
+        offhook_call = yield @get_offhook_call()
+        if offhook_call?
+          debug 'Agent.__hangup_offhook', offhook_call.key
+          yield offhook_call.hangup()
+          yield @del_call offhook_call.id
+        offhook_call = null
 
-Actively monitor the call between the queuer and an agent.
+Actively monitor the call between the queuer and an agent (could be an off-hook or an on-hook call).
 
-      _monitor: seem (agent_call) ->
+      __monitor: seem (agent_call) ->
         debug 'Agent._monitor', @key
+
+        return unless agent_call?
+
         monitor = yield agent_call.monitor()
 
         monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
           debug 'Agent._monitor: channel hangup complete', @key
-          yield @set_onhook_id null
+          yield @set_onhook_call null
           yield @transition 'agent_hangup'
           yield monitor.end()
           monitor = null
@@ -144,14 +141,15 @@ Start of an off-hook session for the agent
 
 Attempt to transition to login with the call-id.
 
-        yield @set_id call_uuid
+        agent_call = @new_call id: call_uuid
+        yield agent_call.save()
+        yield @set_offhook_call agent_call
         unless yield @transition 'login'
           debug 'Agent.accept_offhook transition failed, hanging up'
           yield @__hangup_offhook()
           return false
 
-        agent_call = @new_call id: call_uuid
-        @_monitor agent_call
+        @__monitor agent_call
         true
 
 Start of an on-hook session for the agent
@@ -170,18 +168,18 @@ Originate a call towards an agent
 
 For off-hook the call already exists.
 
-        id = yield @is_offhook_agent()
-        if id?
-          return id
+        offhook_call = yield @get_offhook_call()
+        if offhook_call?
+          return offhook_call
 
 For on-hook we need to call the agent.
 
         agent_call = @new_call destination: @key
-        id = yield agent_call.originate_internal caller
-        yield @set_onhook_id id
-        @_monitor agent_call
+        agent_call = yield agent_call.originate_internal caller
+        yield @set_onhook_call agent_call
+        @__monitor agent_call
 
-        id
+        agent_call
 
 Park an agent, indicating end-of-call + end-of-wrapup
 -----------------------------------------------------
@@ -191,9 +189,8 @@ Park an agent, indicating end-of-call + end-of-wrapup
 
 Actually park an off-hook agent.
 
-        id = yield @is_offhook_agent()
-        if id?
-          agent_call = @new_call {id}
+        agent_call = yield @get_offhook_call()
+        if agent_call?
           yield agent_call.park()
 
 On-hook agents don't need to be parked, they should hangup.
@@ -207,10 +204,9 @@ Notify start of wrapup time to an agent
       wrapup: seem ->
         debug 'Agent.wrapup', @key
 
-        id = yield @is_offhook_agent()
-        id ?= yield @get_onhook_id()
-        if id?
-          agent_call = @new_call {id}
+        agent_call = yield @get_offhook_call()
+        agent_call ?= yield @get_onhook_call()
+        if agent_call?
           yield agent_call.wrapup()
 
 Topmost call for this agent
@@ -228,23 +224,24 @@ Present a call to this agent
 
       present: seem (call) ->
         debug 'Agent.present', call
-        if yield @transition 'present', call.destination
+        notification_data =
+          key: call.key
+          destination: call.destination
+        if yield @transition 'present', notification_data
           switch yield call.present this
             when true # success
-              yield @set_current_call call.key
-              yield @transition 'answer', call.destination
+              yield @set_remote_call call
+              yield @transition 'answer', notification_data
             when false # failure, agent-side
               yield @transition 'logout'
             else # failure, other
-              yield @transition 'timeout', call.destination
+              yield @transition 'timeout', notification_data
 
       disconnect_remote: seem ->
         debug 'Agent.disconnect_remote'
-        key = yield @get_current_call()
-        if key?
-          call = @new_call {key}
-          call.load()
-          yield call.hangup()
+        current_call = yield @get_remote_call()
+        if current_call?
+          yield current_call.hangup()
 
 Tools
 -----
@@ -255,23 +252,47 @@ Tools
       set_state: (state) ->
         @set 'state', state
 
-      get_id: ->
-        @get 'id'
 
-      set_id: (id) ->
-        @set 'id', id
+      get_call: seem (name) ->
+        key = yield @get name
+        if key?
+          call = yield @new_call {key}
+          yield call.load()
+          call
+        else
+          null
 
-      get_onhook_id: ->
-        @get 'agent_id'
+      set_call: seem (name,call) ->
+        if call?
+          yield call.save()
+          yield @set name, call?.key
+        else
+          yield @set name, null
 
-      set_onhook_id: (id) ->
-        @set 'agent_id', id
 
-      get_current_call: ->
-        @get 'current-call'
+      get_offhook_call: ->
+        debug 'get_offhook_call'
+        @get_call 'offhook-call'
 
-      set_current_call: (remote_key)->
-        @set 'current-call', remote_key
+      set_offhook_call: (offhook_call) ->
+        debug 'set_offhook_call'
+        @set_call 'offhook-call', offhook_call
+
+      get_onhook_call: ->
+        debug 'get_onhook_call'
+        @get_call 'onhook-call'
+
+      set_onhook_call: (onhook_call) ->
+        debug 'set_onhook_call'
+        @set_call 'onhook-call', onhook_call
+
+      get_remote_call: ->
+        debug 'get_remote_call'
+        @get_call 'remote-call'
+
+      set_remote_call: (remote_call)->
+        debug 'set_remote_call'
+        @set_call 'remote-call', remote_call
 
 Agent Transitions
 -----------------

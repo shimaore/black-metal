@@ -69,7 +69,7 @@ Agent in off-hook mode
 
         if @id?
           if yield @exists()
-            return @id
+            return this
           else
             return null
 
@@ -89,7 +89,7 @@ Agent in on-hook mode
           @destination = null
           @id = id
           yield @save()
-          id
+          this
         else
           null
 
@@ -100,7 +100,7 @@ Ingress (or otherwise existing) call
 
         if @id?
           if yield @exists()
-            return @id
+            return this
           else
             return null
 
@@ -127,15 +127,15 @@ This is similar to what we do with `place-call` but we're calling the other way 
           @destination = null
           @id = id
           yield @save()
-          id
+          this
         else
           null
 
-      bridge: seem (agent_id) ->
-        debug 'Call.bridge', @id, agent_id
-        yield @api "uuid_broadcast #{agent_id} gentones::%(100,20,400);%(100,0,600) aleg"
+      bridge: seem (agent_call) ->
+        debug 'Call.bridge', @id, agent_call.id
+        yield @api "uuid_broadcast #{agent_call.id} gentones::%(100,20,400);%(100,0,600) aleg"
         yield sleep 400
-        yield @api "uuid_bridge #{@id} #{agent_id}"
+        yield @api "uuid_bridge #{@id} #{agent_call.id}"
 
       park: seem ->
         debug 'Call.park', @id
@@ -191,15 +191,15 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
 We need to send the call to the agent (using either mode A or mode B).
 
-          agent_id = yield agent.originate this
+          agent_call = yield agent.originate this
 
-          if @id? and agent_id? and yield @bridge agent_id
-            debug 'Call.present: Successfully bridged', @id, agent_id
+          if @id? and agent_call? and yield @bridge agent_call
+            debug 'Call.present: Successfully bridged', @id, agent_call.key
             return true
 
-          debug 'Call.present: Failed to bridge', @id, agent_id
+          debug 'Call.present: Failed to bridge', @id, agent_call.key
           yield @del_tag 'presenting'
-          if not agent_id?
+          if not agent_call?
             return false
 
         catch error
