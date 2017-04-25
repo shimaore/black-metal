@@ -133,7 +133,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
 
       bridge: seem (agent_call) ->
         debug 'Call.bridge', @id, agent_call.id
-        yield @api "uuid_pause #{@id} on"
+        yield @api "uuid_break #{@id}"
         yield @api "uuid_broadcast #{agent_call.id} gentones::%(100,20,400);%(100,0,600) aleg"
         yield sleep 400
         yield @api "uuid_bridge #{@id} #{agent_call.id}"
@@ -169,7 +169,7 @@ with the gentones notifications.
 
       announce: seem (file) ->
         debug 'Call.announce', @id, file
-        yield @api "uuid_broadcast #{@id} playback #{file}"
+        yield @api "uuid_broadcast #{@id} #{file}"
 
       presenting: seem ->
         yield @has_tag 'presenting'
