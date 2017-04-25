@@ -111,6 +111,32 @@ Handle transitions
           yield @del_call id
         id
 
+Actively monitor the call between the queuer and an agent.
+
+      _monitor: seem (agent_call) ->
+        debug 'Agent._monitor', @key
+        monitor = yield agent_call.monitor()
+
+        monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+          debug 'Agent._monitor: channel hangup complete', @key
+          yield @set_onhook_id null
+          yield @transition 'agent_hangup'
+          yield monitor.end()
+          monitor = null
+
+        monitor?.on 'DTMF', seem ({body}) =>
+          debug 'Agent._monitor: DTMF', @key
+          switch body['DTMF-Digit']
+            when '*'
+              yield @transition 'force_hangup'
+            when '#'
+              yield @transition 'complete'
+
+        monitor
+
+Start of an off-hook session for the agent
+------------------------------------------
+
       accept_offhook: seem (call_uuid) ->
         debug 'Agent.accept_offhook', call_uuid
         yield @del_call call_uuid
@@ -123,6 +149,9 @@ Attempt to transition to login with the call-id.
           debug 'Agent.accept_offhook transition failed, hanging up'
           yield @__hangup_offhook()
           return false
+
+        agent_call = @new_call id: call_uuid
+        @_monitor agent_call
         true
 
 Start of an on-hook session for the agent
@@ -149,11 +178,9 @@ For on-hook we need to call the agent.
 
         agent_call = @new_call destination: @key
         id = yield agent_call.originate_internal caller
-        yield @set 'agent_id', id
-        monitor = yield agent_call.monitor()
-        monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
-          yield @set 'agent_id', null
-          yield @transition 'agent_hangup'
+        yield @set_onhook_id id
+        @_monitor agent_call
+
         id
 
 Park an agent, indicating end-of-call + end-of-wrapup
@@ -181,12 +208,9 @@ Notify start of wrapup time to an agent
         debug 'Agent.wrapup', @key
 
         id = yield @is_offhook_agent()
-        id ?= yield @get 'agent_id'
+        id ?= yield @get_onhook_id()
         if id?
           agent_call = @new_call {id}
-          monitor = yield agent_call.monitor()
-          monitor?.once 'DTMF', =>
-            @transition 'complete'
           yield agent_call.wrapup()
 
 Topmost call for this agent
@@ -214,6 +238,14 @@ Present a call to this agent
             else # failure, other
               yield @transition 'timeout', call.destination
 
+      disconnect_remote: seem ->
+        debug 'Agent.disconnect_remote'
+        key = yield @get_current_call()
+        if key?
+          call = @new_call {key}
+          call.load()
+          yield call.hangup()
+
 Tools
 -----
 
@@ -228,6 +260,12 @@ Tools
 
       set_id: (id) ->
         @set 'id', id
+
+      get_onhook_id: ->
+        @get 'agent_id'
+
+      set_onhook_id: (id) ->
+        @set 'agent_id', id
 
       get_current_call: ->
         @get 'current-call'
@@ -346,6 +384,14 @@ Upon transitioning to the presenting state:
 ### State: in-call
 
       in_call:
+
+        hangup: 'wrap_up'
+        force_hangup: 'terminate_call'
+        agent_hangup: 'idle'
+
+        logout: 'logged_out'
+
+      terminate_call:
 
         hangup: 'wrap_up'
         agent_hangup: 'idle'

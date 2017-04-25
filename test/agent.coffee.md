@@ -71,6 +71,7 @@
         if cmd.match /^myevents/
           return Promise.resolve
             once: ->
+            on: ->
         true
 
       profile = 'booh!'
