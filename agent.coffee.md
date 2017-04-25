@@ -33,6 +33,8 @@ This is meant to be defined in a sub-calls.
 Base features
 -------------
 
+Monitor other calls for this agent, keeping state.
+
       add_call: seem (id) ->
         debug 'Agent.add_call', id
         return unless id?
@@ -60,6 +62,8 @@ Base features
         if removed and count is 0
           yield @transition 'end_of_calls'
         null
+
+Handle transitions
 
       transition: seem (event, notification_data = null) ->
         debug 'Agent.transition', event
@@ -120,6 +124,9 @@ Attempt to transition to login with the call-id.
           yield @__hangup_offhook()
           return false
         true
+
+Start of an on-hook session for the agent
+-----------------------------------------
 
       accept_onhook: seem ->
         debug 'Agent.accept_onhook'
@@ -200,12 +207,15 @@ Present a call to this agent
         if yield @transition 'present', call.destination
           switch yield call.present this
             when true # success
-              @set 'current-call', call.key
-              @transition 'answer', call.destination
+              yield @set_current_call call.key
+              yield @transition 'answer', call.destination
             when false # failure, agent-side
-              @transition 'logout'
+              yield @transition 'logout'
             else # failure, other
-              @transition 'timeout', call.destination
+              yield @transition 'timeout', call.destination
+
+Tools
+-----
 
       get_state: ->
         @get 'state'
@@ -218,6 +228,12 @@ Present a call to this agent
 
       set_id: (id) ->
         @set 'id', id
+
+      get_current_call: ->
+        @get 'current-call'
+
+      set_current_call: (remote_key)->
+        @set 'current-call', remote_key
 
 Agent Transitions
 -----------------
