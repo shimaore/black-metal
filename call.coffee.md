@@ -173,7 +173,7 @@ with the gentones notifications.
         @set 'remote-number', number
 
       get_remote_number: ->
-        @get 'remote_number'
+        @get 'remote-number'
 
 Present
 -------
