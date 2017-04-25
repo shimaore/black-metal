@@ -125,8 +125,9 @@ This next line is redundant with what happens in `report_non_idle`, I guess.
               if yield agent.present call
                 yield pool.remove call
                 monitor = yield call.monitor()
-                monitor?.once 'CHANNEL_HANGUP_COMPLETE', =>
-                  agent.transition 'hangup'
+                monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+                  yield agent.transition 'hangup'
+                  yield monitor.end()
               return false
             null
 
@@ -150,8 +151,9 @@ Note: it is OK for agent.filter_and_sort to throw away calls that will not make 
           yield call.save()
           yield @ingress_pool.add call
           monitor = yield call.monitor()
-          monitor?.once 'CHANNEL_HANGUP_COMPLETE', =>
-            @hungup_ingress_call call
+          monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+            yield @hungup_ingress_call call
+            yield monitor.end()
           yield @reevaluate_idle_agents()
 
         hungup_ingress_call: seem (call) ->
