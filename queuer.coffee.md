@@ -25,6 +25,10 @@
           debug 'Pool.remove', @name, call.key
           super call.key
 
+        has: (call) ->
+          debug 'Pool.has', @name, call.key
+          super call.key
+
         not_presenting: seem ->
           debug 'Pool.not_presenting', @key
           result = []

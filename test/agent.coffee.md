@@ -32,6 +32,9 @@
           redis._[key] ?= new Set
           redis._[key].delete member
           Promise.resolve 1
+        sismemberAsync: (key,member) ->
+          debug 'sismember', key, member
+          Promise.resolve key of redis._
         sscanAsync: (key,cursor) ->
           debug 'sscan', key, cursor
           keys = []

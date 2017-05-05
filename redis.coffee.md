@@ -49,6 +49,10 @@ Set
         if value?
           @redis.sremAsync @__set_key(), value
 
+      has: (value) ->
+        if value?
+          @redis.sismemberAsync @__set_key(), value
+
       count: ->
         @redis.scardAsync @__set_key()
 
