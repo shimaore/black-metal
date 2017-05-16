@@ -2,7 +2,7 @@ Agent
 =====
 
     @name = 'black-metal:agent'
-    debug = (require 'debug') @name
+    debug = (require 'tangible') @name
     seem = require 'seem'
     RedisClient = require './redis'
 

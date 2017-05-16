@@ -2,7 +2,7 @@ Tagging in the queuer
 =====================
 
     @name = 'black-metal:tagged-call'
-    debug = (require 'debug') @name
+    debug = (require 'tangible') @name
     seem = require 'seem'
     Bluebird = require 'bluebird'
 

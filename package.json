@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "prepublish": "coffee -c -M *.coffee.md",
-    "pretest": "npm run prepublish",
+    "pretest": "npm install && npm run prepublish",
     "test": "mocha"
   },
   "repository": {
@@ -25,6 +25,7 @@
     "esl": "^5.2.2",
     "redis": "^2.7.1",
     "seem": "^2.0.0",
+    "tangible": "^1.2.2",
     "uuid": "^3.0.1"
   }
 }

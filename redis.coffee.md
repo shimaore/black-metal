@@ -5,7 +5,7 @@
 
     seem = require 'seem'
     @name = 'black-metal:redis'
-    debug = (require 'debug') @name
+    debug = (require 'tangible') @name
 
     class RedisClient
       constructor: (@class_name,@key) ->

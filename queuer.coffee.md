@@ -3,7 +3,7 @@
     RedisClient = require './redis'
 
     uuidV4 = require 'uuid/v4'
-    debug = (require 'debug') @name
+    debug = (require 'tangible') @name
 
     make_id = ->
       now = new Date() .toJSON()

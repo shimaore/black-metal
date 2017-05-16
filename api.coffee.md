@@ -2,7 +2,7 @@
     seem = require 'seem'
 
     FS = require 'esl'
-    debug = (require 'debug') @name
+    debug = (require 'tangible') @name
 
 API
 ---

@@ -1,7 +1,7 @@
 class Call: a call from or towards a customer
 
     @name = 'black-metal:call'
-    debug = (require 'debug') @name
+    debug = (require 'tangible') @name
     seem = require 'seem'
     uuidV4 = require 'uuid/v4'
     RedisClient = require './redis'
