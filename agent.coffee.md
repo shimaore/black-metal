@@ -124,9 +124,9 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
         monitor?.on 'DTMF', seem ({body}) =>
           debug 'Agent._monitor: DTMF', @key
           switch body['DTMF-Digit']
-            when '*'
+            when '*', '7', '4', '1'
               yield @transition 'force_hangup'
-            when '#'
+            when '#', '9', '6', '3'
               yield @transition 'complete'
 
         monitor
