@@ -158,7 +158,7 @@ with the gentones notifications.
 
       hangup: seem ->
         debug 'Call.hangup', @id
-        yield @api "uuid_kill #{@id}"
+        yield @api("uuid_kill #{@id}").catch -> yes
         @id = null
         @destination = null
         yield @save()
