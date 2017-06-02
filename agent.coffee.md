@@ -116,9 +116,9 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
 
         monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
           debug 'Agent.__monitor: channel hangup complete', @key
+          yield monitor.end().catch -> yes
           yield @set_onhook_call null
           yield @transition 'agent_hangup'
-          yield monitor.end()
           monitor = null
 
         monitor?.on 'DTMF', seem ({body}) =>

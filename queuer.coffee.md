@@ -134,8 +134,9 @@ This next line is redundant with what happens in `report_non_idle`, I guess.
                 yield pool.remove call
                 monitor = yield call.monitor()
                 monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+                  yield monitor.end().catch -> yes
                   yield agent.transition 'hangup'
-                  yield monitor.end()
+                  monitor = null
               return false
             null
 
