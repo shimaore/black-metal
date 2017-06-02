@@ -115,19 +115,20 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
         monitor = yield agent_call.monitor()
 
         monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
-          debug 'Agent._monitor: channel hangup complete', @key
+          debug 'Agent.__monitor: channel hangup complete', @key
           yield @set_onhook_call null
           yield @transition 'agent_hangup'
           yield monitor.end()
           monitor = null
 
         monitor?.on 'DTMF', seem ({body}) =>
-          debug 'Agent._monitor: DTMF', @key
+          debug 'Agent.__monitor: DTMF', @key
           switch body['DTMF-Digit']
             when '*', '7', '4', '1'
               yield @transition 'force_hangup'
             when '#', '9', '6', '3'
               yield @transition 'complete'
+          return
 
         monitor
 
@@ -142,6 +143,10 @@ Start of an off-hook session for the agent
 Attempt to transition to login with the call-id.
 
         agent_call = @new_call id: call_uuid
+        unless @__monitor agent_call
+          yield agent_call.hangup().catch -> yes
+          return false
+
         yield agent_call.save()
         yield @set_offhook_call agent_call
         unless yield @transition 'login'
@@ -149,7 +154,6 @@ Attempt to transition to login with the call-id.
           yield @__hangup_offhook()
           return false
 
-        @__monitor agent_call
         true
 
 Start of an on-hook session for the agent
@@ -176,9 +180,11 @@ For on-hook we need to call the agent.
 
         agent_call = @new_call destination: @key
         agent_call = yield agent_call.originate_internal caller
-        yield @set_onhook_call agent_call
-        @__monitor agent_call
+        unless @__monitor agent_call
+          agent_call.hangup().catch -> yes
+          return null
 
+        yield @set_onhook_call agent_call
         agent_call
 
 Park an agent, indicating end-of-call + end-of-wrapup
@@ -233,9 +239,12 @@ Present a call to this agent
               yield @set_remote_call call
               yield @transition 'answer', notification_data
             when false # failure, agent-side
+              yield call.hangup().catch -> yes
               yield @transition 'logout'
             else # failure, other
+              yield call.hangup().catch -> yes
               yield @transition 'timeout', notification_data
+        return
 
       disconnect_remote: seem ->
         debug 'Agent.disconnect_remote'
