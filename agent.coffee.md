@@ -423,7 +423,8 @@ Upon transitioning to the presenting state:
 
       terminate_call:
 
-        hangup: 'wrap_up'
+        hangup: 'wrap_up' # is this required?
+        complete: 'idle'
         agent_hangup: 'idle'
 
         logout: 'logged_out'
