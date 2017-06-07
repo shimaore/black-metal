@@ -408,6 +408,7 @@ Upon transitioning to the presenting state:
 
         answer: 'in_call'
         timeout: 'idle'
+        hangup: 'idle'
 
         logout: 'logged_out'
 
