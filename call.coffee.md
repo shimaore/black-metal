@@ -83,6 +83,8 @@ Agent in on-hook mode
           origination_caller_id_number: source
           hangup_after_bridge: false
           park_after_bridge: true
+          progress_timeout: 18
+          originate_timeout: 18
           'sip_h_X-CCNQ3-Endpoint': @destination # Centrex-only
 
         if yield @api "originate {#{params}}sofia/#{@profile}/#{@destination} &park"
@@ -120,6 +122,8 @@ This is similar to what we do with `place-call` but we're calling the other way 
         data.params.origination_uuid = id
         data.params.hangup_after_bridge = false
         data.params.park_after_bridge = true
+        data.params.progress_timeout = 18
+        data.params.originate_timeout = 30
 
         params = make_params data.params
 
