@@ -22,6 +22,27 @@
           debug 'hget', key, field
           redis._[key] ?= {}
           Promise.resolve redis._[key][field]
+        zaddAsync: (key,member,score) ->
+          debug 'zadd', key, member,score
+          redis._[key] ?= {}
+          redis._[key][member] = score
+          Promise.resolve 1
+        zscanAsync: (key,cursor) ->
+          debug 'sscan', key, cursor
+          keys = []
+          redis._[key] ?= {}
+          keys = Object.getOwnPropertyNames redis._[key]
+          keys = keys.sort (a,b) -> redis._[key][a] - redis._[key][b]
+          Promise.resolve ["0",keys]
+        zremAsync: (key,member) ->
+          debug 'zrem', key, member
+          redis._[key] ?= {}
+          delete redis._[key][member]
+          Promise.resolve 1
+        zcardAsync: (key) ->
+          debug 'scard', key
+          redis._[key] ?= {}
+          Promise.resolve Object.getOwnPropertyNames(redis._[key]).length
         saddAsync: (key,member) ->
           debug 'sadd', key, member
           redis._[key] ?= new Set
@@ -106,7 +127,7 @@
         ok = yield agent.transition 'login'
         ok.should.be.true
         redis._['agent-property-lalala'].should.have.property 'state', 'idle'
-        chai.expect(redis._['pool-set-egress-agents'].has 'lalala').to.be.true
+        redis._['pool-zset-egress-agents'].should.have.property 'lalala', 0
 
       it 'should trigger call on idle', seem ->
         queuer = new Queuer()

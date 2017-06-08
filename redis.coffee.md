@@ -35,6 +35,12 @@ Properties
         else
           yield @redis.hdelAsync @__property_key(), property
 
+      reset: (property) ->
+        @set property, 0
+
+      incr: (property,increment) ->
+        @redis.hincrbyAsync @__property_key(), property, increment
+
 Set
 ---
 
@@ -62,6 +68,49 @@ Set
         cursor = 0
         while cursor isnt '0'
           [cursor,keys] = yield @redis.sscanAsync set_key, cursor
+          debug "forEach #{@class_name} #{set_key}: sscan", cursor, keys
+
+          for key in keys
+            debug "forEach #{@class_name} #{set_key}: cb", key
+            yield cb key
+
+        return
+
+Ordered-Set
+---
+
+      __zset_key: ->
+        "#{@class_name}-zset-#{@key}"
+
+      sorted_add: (value,score = 0) ->
+        if value?
+          @redis.zaddAsync @__zset_key(), value, score
+
+      sorted_incr: (value,delta) ->
+        if value?
+          @redis.zincrbyAsync @__zset_key(), delta, value
+
+      sorted_remove: (value) ->
+        if value?
+          @redis.zremAsync @__zset_key(), value
+
+      sorted_has: (value) ->
+        if value?
+          @score(value)?
+
+      score: (value) ->
+        if value?
+          @redis.zscoreAsync @__zset_key(), value
+
+      sorted_count: ->
+        @redis.zcardAsync @__zset_key()
+
+      sorted_forEach: seem (cb) ->
+        set_key = @__zset_key()
+        debug "forEach #{@class_name} #{set_key}"
+        cursor = 0
+        while cursor isnt '0'
+          [cursor,keys] = yield @redis.zscanAsync set_key, cursor
           debug "forEach #{@class_name} #{set_key}: sscan", cursor, keys
 
           for key in keys

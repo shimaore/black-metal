@@ -48,20 +48,21 @@
           super 'pool', 'egress-agents'
           throw new Error 'EgressAgents requires queuer' unless @queuer
 
-        add: (agent) ->
+        add: seem (agent) ->
           debug 'EgressAgents.add', agent.key
-          super agent.key
+          score = yield agent.get_missed()
+          @sorted_add agent.key, score
 
         remove: (agent) ->
           debug 'EgressAgents.remove', agent.key
-          super agent.key
+          @sorted_remove agent.key
 
         reevaluate: seem (cb) ->
           debug 'EgressAgents.reevaluate'
 
 reevaluate the list
 
-          yield @forEach seem (key) =>
+          yield @sorted_forEach seem (key) =>
             debug 'EgressAgents.reevaluate', key
             agent = new Agent @queuer, key
 
@@ -201,6 +202,9 @@ An egress pool is a set of dynamically constructed call instances (for example u
 
         on_agent: seem (agent,state) ->
           debug 'Queuer.on_agent', agent.key, state
+
+          if state is 'logged_out'
+            yield agent.reset_missed()
 
           if state is 'wrap_up'
             yield agent.wrapup()

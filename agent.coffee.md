@@ -6,6 +6,10 @@ Agent
     seem = require 'seem'
     RedisClient = require './redis'
 
+    seconds = 1000
+    minutes = 60*seconds
+    timeout_duration = 1*minutes
+
     class Agent extends RedisClient
       constructor: (@queuer,key) ->
         throw new Error 'Agent requires queuer' unless @queuer?
@@ -83,6 +87,10 @@ Handle transitions
 
         new_state = agent_transition[old_state][event]
 
+        if @__timeout?
+          clearTimeout @__timeout
+          @__timeout = null
+
         unless new_state of agent_transition
           yield @set_state initial_state
           throw new Error "Invalid state machine, transition from #{old_state} → event #{event} leads to unknown state #{new_state}"
@@ -92,6 +100,8 @@ Handle transitions
           yield @set_state new_state
           yield @notify? new_state, notification_data
           yield @queuer.on_agent this, new_state
+          if 'timeout' of agent_transition[new_state]
+            @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration
           return true
         else
           return false
@@ -237,13 +247,15 @@ Present a call to this agent
           switch yield call.present this
             when true # success
               yield @set_remote_call call
+              yield @reset_missed()
               yield @transition 'answer', notification_data
             when false # failure, agent-side
               yield call.hangup().catch -> yes
-              yield @transition 'logout'
+              yield @incr_missed()
+              yield @transition 'missed'
             else # failure, other
               yield call.hangup().catch -> yes
-              yield @transition 'timeout', notification_data
+              yield @transition 'failed', notification_data
         return
 
       disconnect_remote: seem ->
@@ -261,6 +273,14 @@ Tools
       set_state: (state) ->
         @set 'state', state
 
+      reset_missed: ->
+        @reset 'missed'
+
+      incr_missed: ->
+        @incr 'missed'
+
+      get_missed: ->
+        @get 'missed'
 
       get_call: seem (name) ->
         key = yield @get name
@@ -334,18 +354,21 @@ The `end_of_calls` event is triggered when all calls related to an agent (outsid
 
 The `present` event is triggered when the queuer assigns a call to an agent in the `idle` state.
 
-### Event: timeout
+### Event: missed
 
-A `timeout` event might occur if the agent
+A `missed` event might occur if the agent
 - mode A: does not acknowlegde the call (TUI or GUI)
 - mode B: does not answer the call
 
-The agent is then marked unavailable and this is reported to the manager.
-- mode A: call into the queuer is forcibly hung up
+The agent is then marked `away` and this is reported to the manager.
 
 ### Event: answer
 
 The `answer` event is triggered if the agent and the remote party are connected.
+
+### Event: failed
+
+The `failed` event is triggered if the call could not be presented.
 
 ### Event: hangup
 
@@ -365,6 +388,10 @@ The complete event is triggered:
 - mode A: if the agent acknowledges the wrap-up (TUI or GUI)
 - mode B: if the agents hangs up or acknowledges the wrap-up (GUI)
 Note: if the agent previously hung-up the wrap-up can only be ack'ed via the GUI.
+
+### Event: timeout
+
+The timeout event is triggered when an agent has been in the same state for a predefined delay.
 
 ### State: logged-out
 
@@ -395,6 +422,16 @@ The busy state is active when an agent's phone is active but on a call not relat
         end_of_calls: 'idle'
         logout: 'logged_out'
 
+### State: away
+
+      away:
+
+        start_of_call: 'busy'
+        end_of_calls: 'idle'
+        login: 'idle'
+        logout: 'logged_out'
+        timeout: 'idle'
+
 ### State: presenting
 
 The presenting state is active when an agent is presented a call but hasn't acknowledged it yet.
@@ -407,7 +444,8 @@ Upon transitioning to the presenting state:
       presenting:
 
         answer: 'in_call'
-        timeout: 'idle'
+        missed: 'away'
+        failed: 'idle'
         hangup: 'idle'
 
         logout: 'logged_out'
