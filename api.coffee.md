@@ -42,9 +42,18 @@ Use linger to capture channel-hangup-complete and other late channel events.
               debug 'api: sending', cmd
 
               on_success = (res) =>
-                debug 'api: success', res.uuid
+                debug 'api: success', res.uuid, res.body
                 @end()
-                resolve res.uuid ? true
+                switch
+                  when res.uuid?
+                    resolve res.uuid
+                  when res.body is 'true'
+                    resolve true
+                  when res.body is 'false'
+                    resolve false
+                  else
+                    resolve true
+                return
 
               on_failure = (error) =>
                 debug 'api: error', error

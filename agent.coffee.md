@@ -6,6 +6,14 @@ Agent
     seem = require 'seem'
     RedisClient = require './redis'
 
+    seconds = 1000
+    minutes = 60*seconds
+    timeout_duration = 1*minutes
+
+    sleep = (timeout) ->
+      new Promise (resolve) ->
+        setTimeout resolve, timeout
+
     class Agent extends RedisClient
       constructor: (@queuer,key) ->
         throw new Error 'Agent requires queuer' unless @queuer?
@@ -62,6 +70,8 @@ Monitor other calls for this agent, keeping state.
 
         if removed and count is 0
           yield @transition 'end_of_calls'
+        else
+          debug 'Agent.del_call: calls left', count
         null
 
 Handle transitions
@@ -83,6 +93,10 @@ Handle transitions
 
         new_state = agent_transition[old_state][event]
 
+        if @__timeout?
+          clearTimeout @__timeout
+          @__timeout = null
+
         unless new_state of agent_transition
           yield @set_state initial_state
           throw new Error "Invalid state machine, transition from #{old_state} → event #{event} leads to unknown state #{new_state}"
@@ -92,6 +106,8 @@ Handle transitions
           yield @set_state new_state
           yield @notify? new_state, notification_data
           yield @queuer.on_agent this, new_state
+          if 'timeout' of agent_transition[new_state]
+            @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration
           return true
         else
           return false
@@ -116,7 +132,7 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
 
         monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
           debug 'Agent.__monitor: channel hangup complete', @key
-          yield monitor.end().catch -> yes
+          monitor.end()
           yield @set_onhook_call null
           yield @transition 'agent_hangup'
           monitor = null
@@ -234,16 +250,23 @@ Present a call to this agent
           key: call.key
           destination: call.destination
         if yield @transition 'present', notification_data
+          yield sleep 2*1000
           switch yield call.present this
             when true # success
+              debug 'Agent.present: answer'
               yield @set_remote_call call
+              yield @reset_missed()
               yield @transition 'answer', notification_data
+              return 'answer'
             when false # failure, agent-side
-              yield call.hangup().catch -> yes
-              yield @transition 'logout'
+              debug 'Agent.present: missed'
+              yield @incr_missed()
+              yield @transition 'missed', notification_data
+              return 'missed'
             else # failure, other
-              yield call.hangup().catch -> yes
-              yield @transition 'timeout', notification_data
+              debug 'Agent.present: failed'
+              yield @transition 'failed', notification_data
+              return 'failed'
         return
 
       disconnect_remote: seem ->
@@ -261,6 +284,14 @@ Tools
       set_state: (state) ->
         @set 'state', state
 
+      reset_missed: ->
+        @reset 'missed'
+
+      incr_missed: ->
+        @incr 'missed'
+
+      get_missed: ->
+        @get 'missed'
 
       get_call: seem (name) ->
         key = yield @get name
@@ -274,7 +305,7 @@ Tools
       set_call: seem (name,call) ->
         if call?
           yield call.save()
-          yield @set name, call?.key
+          yield @set name, call.key
         else
           yield @set name, null
 
@@ -334,18 +365,21 @@ The `end_of_calls` event is triggered when all calls related to an agent (outsid
 
 The `present` event is triggered when the queuer assigns a call to an agent in the `idle` state.
 
-### Event: timeout
+### Event: missed
 
-A `timeout` event might occur if the agent
+A `missed` event might occur if the agent
 - mode A: does not acknowlegde the call (TUI or GUI)
 - mode B: does not answer the call
 
-The agent is then marked unavailable and this is reported to the manager.
-- mode A: call into the queuer is forcibly hung up
+The agent is then marked `away` and this is reported to the manager.
 
 ### Event: answer
 
 The `answer` event is triggered if the agent and the remote party are connected.
+
+### Event: failed
+
+The `failed` event is triggered if the call could not be presented.
 
 ### Event: hangup
 
@@ -366,6 +400,10 @@ The complete event is triggered:
 - mode B: if the agents hangs up or acknowledges the wrap-up (GUI)
 Note: if the agent previously hung-up the wrap-up can only be ack'ed via the GUI.
 
+### Event: timeout
+
+The timeout event is triggered when an agent has been in the same state for a predefined delay.
+
 ### State: logged-out
 
 The logged-out state is the initial state of the state machine.
@@ -375,6 +413,19 @@ In logged-out state an agent is not considered for calls.
       logged_out:
 
         login: 'idle'
+        start_of_call: 'logged_out_busy'
+
+### State: logged_out_busy
+
+      logged_out_busy:
+
+        login: 'busy'
+        start_of_call: 'logged_out_busy'
+        end_of_calls: 'logged_out'
+
+Force log out on second logout.
+
+        logout: 'logged_out'
 
 ### State: idle
 
@@ -393,7 +444,17 @@ The busy state is active when an agent's phone is active but on a call not relat
 
         start_of_call: 'busy'
         end_of_calls: 'idle'
+        logout: 'logged_out_busy'
+
+### State: away
+
+      away:
+
+        start_of_call: 'busy'
+        end_of_calls: 'idle'
+        login: 'idle'
         logout: 'logged_out'
+        timeout: 'idle'
 
 ### State: presenting
 
@@ -407,7 +468,8 @@ Upon transitioning to the presenting state:
       presenting:
 
         answer: 'in_call'
-        timeout: 'idle'
+        missed: 'away'
+        failed: 'idle'
         hangup: 'idle'
 
         logout: 'logged_out'

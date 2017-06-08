@@ -48,20 +48,21 @@
           super 'pool', 'egress-agents'
           throw new Error 'EgressAgents requires queuer' unless @queuer
 
-        add: (agent) ->
+        add: seem (agent) ->
           debug 'EgressAgents.add', agent.key
-          super agent.key
+          score = yield agent.get_missed().catch -> 0
+          @sorted_add agent.key, score
 
         remove: (agent) ->
           debug 'EgressAgents.remove', agent.key
-          super agent.key
+          @sorted_remove agent.key
 
         reevaluate: seem (cb) ->
           debug 'EgressAgents.reevaluate'
 
 reevaluate the list
 
-          yield @forEach seem (key) =>
+          yield @sorted_forEach seem (key) =>
             debug 'EgressAgents.reevaluate', key
             agent = new Agent @queuer, key
 
@@ -130,14 +131,18 @@ This next line is redundant with what happens in `report_non_idle`, I guess.
                 call: call.key
                 remote_number: yield call.get_remote_number()
 
-              if yield agent.present call
-                yield pool.remove call
-                monitor = yield call.monitor()
-                monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
-                  yield monitor.end().catch -> yes
-                  yield agent.transition 'hangup'
-                  monitor = null
-              return false
+              result = yield agent.present call
+              switch result
+                when 'answer'
+                  yield pool.remove call
+                  monitor = yield call.monitor()
+                  monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+                    monitor.end()
+                    yield agent.transition 'hangup'
+                    monitor = null
+                  return true
+                when 'missed'
+                  return false
             null
 
 The `agent_pool` contains (at least the topmost) calls matching for this agent.
@@ -168,6 +173,7 @@ Note: it is OK for agent.filter_and_sort to throw away calls that will not make 
         hungup_ingress_call: seem (call) ->
           debug 'Queuer.hungup_ingress_call'
           yield call.load()
+          yield call.unbridge()
           yield @ingress_pool.remove call
 
 An egress pool is a set of dynamically constructed call instances (for example using an iterator). The call instance is created using data found e.g. in a database, the (egress) call is placed in the pool, and the idle agents are re-evaluated.
@@ -201,6 +207,10 @@ An egress pool is a set of dynamically constructed call instances (for example u
 
         on_agent: seem (agent,state) ->
           debug 'Queuer.on_agent', agent.key, state
+
+          if state is 'logged_out'
+            yield agent.reset_missed()
+            yield agent.clear()
 
           if state is 'wrap_up'
             yield agent.wrapup()

@@ -1,7 +1,7 @@
     chai = require 'chai'
     chai.should()
     seem = require 'seem'
-    debug = (require 'debug') 'black-metal:test:agent'
+    debug = (require 'tangible') 'black-metal:test:agent'
 
     describe 'The Agent', ->
       redis =
@@ -22,6 +22,27 @@
           debug 'hget', key, field
           redis._[key] ?= {}
           Promise.resolve redis._[key][field]
+        zaddAsync: (key,score,member) ->
+          debug 'zadd', key, member,score
+          redis._[key] ?= {}
+          redis._[key][member] = score
+          Promise.resolve 1
+        zscanAsync: (key,cursor) ->
+          debug 'sscan', key, cursor
+          keys = []
+          redis._[key] ?= {}
+          keys = Object.getOwnPropertyNames redis._[key]
+          keys = keys.sort (a,b) -> redis._[key][a] - redis._[key][b]
+          Promise.resolve ["0",keys]
+        zremAsync: (key,member) ->
+          debug 'zrem', key, member
+          redis._[key] ?= {}
+          delete redis._[key][member]
+          Promise.resolve 1
+        zcardAsync: (key) ->
+          debug 'scard', key
+          redis._[key] ?= {}
+          Promise.resolve Object.getOwnPropertyNames(redis._[key]).length
         saddAsync: (key,member) ->
           debug 'sadd', key, member
           redis._[key] ?= new Set
@@ -55,6 +76,11 @@
           debug 'scard', key
           redis._[key] ?= new Set
           Promise.resolve redis._[key].size
+        sinterstoreAsync: (key) ->
+          debug 'scard', key
+          redis._[key] = new Set
+          Promise.resolve 1
+
 
       policy = (calls) ->
         debug 'policy_for…'
@@ -75,7 +101,9 @@
           return Promise.resolve
             once: ->
             on: ->
-        true
+        if cmd.match /^uuid_exists/
+          return Promise.resolve 'true'
+        Promise.resolve true
 
       profile = 'booh!'
 
@@ -94,7 +122,7 @@
       Queuer = (require '../queuer') {redis, Agent: TestAgent, Call: TestCall}
 
       it 'should increment external calls', seem ->
-        queuer = {}
+        queuer = new Queuer()
         agent = new TestAgent queuer, 'lalala'
         yield agent.add_call 1234
         yield agent.del_call 1234
@@ -106,9 +134,10 @@
         ok = yield agent.transition 'login'
         ok.should.be.true
         redis._['agent-property-lalala'].should.have.property 'state', 'idle'
-        chai.expect(redis._['pool-set-egress-agents'].has 'lalala').to.be.true
+        redis._['pool-zset-egress-agents'].should.have.property 'lalala', 0
 
       it 'should trigger call on idle', seem ->
+        @timeout 4000
         queuer = new Queuer()
         agent = new TestAgent queuer, 'lululu'
         ok = yield agent.transition 'login'
@@ -116,6 +145,7 @@
         redis._['agent-property-lululu'].should.have.property 'state', 'in_call'
 
       it 'should transition on ingress', seem ->
+        @timeout 4000
         queuer = new Queuer()
         lalilo = new TestAgent queuer, 'lalilo'
         laloli = new TestAgent queuer, 'laloli'

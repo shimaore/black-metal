@@ -56,7 +56,7 @@ and save it (async).
 
       exists: seem ->
         if @id?
-          'true' is yield @api "uuid_exists #{@id}"
+          yield @api "uuid_exists #{@id}"
         else
           null
 
@@ -83,7 +83,10 @@ Agent in on-hook mode
           origination_caller_id_number: source
           hangup_after_bridge: false
           park_after_bridge: true
+          progress_timeout: 18
+          originate_timeout: 18
           'sip_h_X-CCNQ3-Endpoint': @destination # Centrex-only
+        yield caller.set 'matched_call', id
 
         if yield @api "originate {#{params}}sofia/#{@profile}/#{@destination} &park"
           @destination = null
@@ -120,6 +123,8 @@ This is similar to what we do with `place-call` but we're calling the other way 
         data.params.origination_uuid = id
         data.params.hangup_after_bridge = false
         data.params.park_after_bridge = true
+        data.params.progress_timeout = 18
+        data.params.originate_timeout = 30
 
         params = make_params data.params
 
@@ -137,6 +142,12 @@ This is similar to what we do with `place-call` but we're calling the other way 
         yield @api "uuid_broadcast #{agent_call.id} gentones::%(100,20,400);%(100,0,600) aleg"
         yield sleep 400
         yield @api "uuid_bridge #{@id} #{agent_call.id}"
+
+      unbridge: seem ->
+        debug 'Call.unbridge', @id
+        id = yield @get 'matched_call'
+        if id?
+          yield @api "uuid_kill #{id}"
 
       park: seem ->
         debug 'Call.park', @id
@@ -158,7 +169,8 @@ with the gentones notifications.
 
       hangup: seem ->
         debug 'Call.hangup', @id
-        yield @api("uuid_kill #{@id}").catch -> yes
+        if @id?
+          yield @api("uuid_kill #{@id}").catch -> yes
         @id = null
         @destination = null
         yield @save()
@@ -173,6 +185,9 @@ with the gentones notifications.
 
       presenting: seem ->
         yield @has_tag 'presenting'
+
+      bridged: seem ->
+        yield @has_tag 'bridged'
 
       set_remote_number: (number) ->
         @set 'remote-number', number
@@ -198,7 +213,9 @@ Returns:
 For a dial-out (egress) call we first need to attempt to contact the destination.
 For a dial-in (ingress) call we already have the proper call UUID.
 
-          yield @originate_external agent
+          exists = yield @originate_external agent
+
+          return null if not exists
 
 We need to send the call to the agent (using either mode A or mode B).
 
@@ -206,9 +223,11 @@ We need to send the call to the agent (using either mode A or mode B).
 
           if @id? and agent_call? and yield @bridge agent_call
             debug 'Call.present: Successfully bridged', @id, agent_call.key
+            yield @set 'matched_call', null
+            @add_tag 'bridged'
             return true
 
-          debug 'Call.present: Failed to bridge', @id, agent_call.key
+          debug 'Call.present: Failed to bridge', @id, agent_call?.key
           yield @del_tag 'presenting'
           if not agent_call?
             return false
