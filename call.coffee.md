@@ -78,6 +78,7 @@ Agent in on-hook mode
         id = @key
         source = yield caller.get_remote_number()
         source ?= 'caller'
+        alert_info = yield caller.get_alert_info()
         params = make_params
           origination_uuid: id
           origination_caller_id_number: source
@@ -86,6 +87,7 @@ Agent in on-hook mode
           progress_timeout: 18
           originate_timeout: 18
           'sip_h_X-CCNQ3-Endpoint': @destination # Centrex-only
+          alert_info: alert_info
         yield caller.set 'matched_call', id
 
         if yield @api "originate {#{params}}sofia/#{@profile}/#{@destination} &park"
@@ -194,6 +196,12 @@ with the gentones notifications.
 
       get_remote_number: ->
         @get 'remote-number'
+
+      set_alert_info: (alert_info) ->
+        @set 'alert-info', alert_info
+
+      get_alert_info: ->
+        @get 'alert-info'
 
 Present
 -------
