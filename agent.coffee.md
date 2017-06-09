@@ -8,7 +8,7 @@ Agent
 
     seconds = 1000
     minutes = 60*seconds
-    timeout_duration = 1*minutes
+    timeout_duration = 12*seconds
 
     sleep = (timeout) ->
       new Promise (resolve) ->
