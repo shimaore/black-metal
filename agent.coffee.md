@@ -130,11 +130,14 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
 
         monitor = yield agent_call.monitor()
 
-        monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+        monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({variable_transfer_disposition}) =>
           debug 'Agent.__monitor: channel hangup complete', @key
           monitor.end()
           yield @set_onhook_call null
-          yield @transition 'agent_hangup'
+          if variable_transfer_disposition is 'recv_replace'
+            yield @transition 'agent_transfer'
+          else
+            yield @transition 'agent_hangup'
           monitor = null
 
         monitor?.on 'DTMF', seem ({body}) =>
@@ -384,7 +387,7 @@ The `failed` event is triggered if the call could not be presented.
 ### Event: hangup
 
 The `hangup` event is triggered:
-- if the agent hangs up the call via GUI
+- if the agent hangs up the call via GUI (not implemented)
 - if the remote party hangs up
 
 ### Event: agent_hangup
@@ -481,6 +484,7 @@ Upon transitioning to the presenting state:
         hangup: 'wrap_up'
         force_hangup: 'terminate_call'
         agent_hangup: 'idle'
+        agent_transfer: 'idle'
 
         logout: 'logged_out'
 

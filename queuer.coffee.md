@@ -165,9 +165,16 @@ Note: it is OK for agent.filter_and_sort to throw away calls that will not make 
           yield call.save()
           yield @ingress_pool.add call
           monitor = yield call.monitor()
-          monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
-            yield @hungup_ingress_call call
-            yield monitor.end()
+          monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({variable_hangup_cause}) =>
+            monitor.end()
+            switch variable_hangup_cause
+              when 'ATTENDED_TRANSFER'
+                debug 'Queuer.queue_ingress_call: attended_transfer'
+              when 'BLIND_TRANSFER'
+                debug 'Queuer.queue_ingress_call: blind_transfer'
+              else
+                yield @hungup_ingress_call call
+            monitor = null
           yield @reevaluate_idle_agents()
 
         hungup_ingress_call: seem (call) ->
