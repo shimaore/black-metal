@@ -130,14 +130,15 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
 
         monitor = yield agent_call.monitor()
 
-        monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({variable_transfer_disposition}) =>
+        monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({body}) =>
           debug 'Agent.__monitor: channel hangup complete', @key
           monitor.end()
           yield @set_onhook_call null
-          if variable_transfer_disposition is 'recv_replace'
-            yield @transition 'agent_transfer'
-          else
-            yield @transition 'agent_hangup'
+          switch body?.variable_transfer_disposition
+            when 'recv_replace'
+              yield @transition 'agent_transfer'
+            else
+              yield @transition 'agent_hangup'
           monitor = null
 
         monitor?.on 'DTMF', seem ({body}) =>
