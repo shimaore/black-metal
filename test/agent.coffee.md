@@ -87,13 +87,15 @@
         return null if @key is 'lalala'
         calls[0]
 
-      create_egress_call = ->
+      create_egress_call = seem ->
         debug 'egress_call_for', @key
         switch @key
           when 'lululu'
-            Promise.resolve new TestCall destination: '33643482771'
+            call = new TestCall destination: '33643482771'
+            yield call.set_reference 'hello-world'
+            call
           else
-            Promise.resolve null
+            null
 
       api = (cmd) ->
         debug 'api', cmd
@@ -112,6 +114,7 @@
         api: api
         profile: profile
         get_reference_data: (reference) -> params: {}
+        update_reference_data: (reference_data,call_reference_data) ->
 
       class TestAgent extends require '../agent'
         redis: redis
@@ -155,6 +158,10 @@
         ok.should.be.true
         redis._['agent-property-lalilo'].should.have.property 'state', 'idle'
         redis._['agent-property-laloli'].should.have.property 'state', 'idle'
-        yield queuer.queue_ingress_call new TestCall id:'1234'
-        redis._['agent-property-lalilo'].should.have.property 'state', 'in_call'
-        redis._['agent-property-laloli'].should.have.property 'state', 'idle'
+        call = new TestCall id:'1234'
+        yield call.set_reference 'hello-again'
+        yield queuer.queue_ingress_call
+        in_call = 0
+        in_call += 1 if redis._['agent-property-lalilo'].state is 'in_call'
+        in_call += 1 if redis._['agent-property-laloli'].state is 'idle'
+        chai.expect(in_call).to.equal 1

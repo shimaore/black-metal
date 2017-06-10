@@ -60,15 +60,45 @@ and save it (async).
         else
           null
 
+Originate a call towards an agent
+---------------------------------
+
 Make sure to define the `api` method` and the `profile` member.
 
       originate_internal: seem (caller) ->
         debug 'Call.originate', @key, @destination
 
+The `reference` is set either:
+- by huge-play/middleware/client/fifo for an ingress call;
+- by originate_external (below) for a successful egress call.
+
+        reference = yield caller.get_reference()
+
+        unless reference?
+          debug.dev 'Call.originate: caller has no reference', caller.key, @key, @destination
+          return null
+
+        data = yield caller.get_reference_data reference
+
+        source = yield caller.get_remote_number()
+        source ?= 'caller'
+
 Agent in off-hook mode
 
         if @id?
           if yield @exists()
+
+FIXME how do we (re)bind the agent's off-hook call with this incoming call?
+
+            call_reference_data =
+              uuid: @id
+              session: null
+              reports: []
+              start_time: new Date().toJSON()
+              source: source
+              destination: @destination
+
+            data = yield @update_reference_data data, call_reference_data
             return this
           else
             return null
@@ -76,10 +106,29 @@ Agent in off-hook mode
 Agent in on-hook mode
 
         id = @key
-        source = yield caller.get_remote_number()
-        source ?= 'caller'
+
         alert_info = yield caller.get_alert_info()
-        params = make_params
+
+        endpoint = @destination
+        data.endpoint = endpoint
+        data._in ?= []
+        data._in.push endpoint unless endpoint in data._in
+        data.state = 'originate-internal'
+
+Create call data for our call towards (presumably) OpenSIPS.
+
+        call_reference_data =
+          uuid: id
+          session: null
+          reports: []
+          start_time: new Date().toJSON()
+          source: source
+          destination: @destination
+
+        data = yield @update_reference_data data, call_reference_data
+
+        xref = "xref:#{reference}"
+        params =
           origination_uuid: id
           origination_caller_id_number: source
           hangup_after_bridge: false
@@ -88,15 +137,26 @@ Agent in on-hook mode
           originate_timeout: 18
           'sip_h_X-CCNQ3-Endpoint': @destination # Centrex-only
           alert_info: alert_info
-        yield caller.set 'matched_call', id
+          sip_invite_params: xref
+          sip_invite_to_params: xref
+          sip_invite_contact_params: xref
+          sip_invite_from_params: xref
+        params = make_params
 
+Originates towards (presumably) OpenSIPS.
+
+        yield caller.set 'matched_call', id
         if yield @api "originate {#{params}}sofia/#{@profile}/#{@destination} &park"
           @destination = null
           @id = id
           yield @save()
+          yield @set_reference reference
           this
         else
           null
+
+Originate a call towards a third-party
+--------------------------------------
 
       originate_external: seem ->
         debug 'Call.originate_external', @key, @destination
@@ -122,11 +182,20 @@ This is similar to what we do with `place-call` but we're calling the other way 
         unless data?
           return null
 
-        data.params.origination_uuid = id
-        data.params.hangup_after_bridge = false
-        data.params.park_after_bridge = true
-        data.params.progress_timeout = 18
-        data.params.originate_timeout = 30
+        xref = "xref:#{reference}"
+        params =
+          origination_uuid: id
+          hangup_after_bridge: false
+          park_after_bridge: true
+          progress_timeout: 18
+          originate_timeout: 30
+          sip_invite_params: xref
+          sip_invite_to_params: xref
+          sip_invite_contact_params: xref
+          sip_invite_from_params: xref
+
+        for own k,v of data.params
+          params[k] ?= v
 
         params = make_params data.params
 
@@ -134,6 +203,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
           @destination = null
           @id = id
           yield @save()
+          yield @set_reference reference
           this
         else
           null
@@ -202,6 +272,12 @@ with the gentones notifications.
 
       get_alert_info: ->
         @get 'alert-info'
+
+      set_reference: (reference) ->
+        @set 'reference', reference
+
+      get_reference: ->
+        @get 'reference'
 
 Present
 -------
