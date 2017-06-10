@@ -141,7 +141,7 @@ Create call data for our call towards (presumably) OpenSIPS.
           sip_invite_to_params: xref
           sip_invite_contact_params: xref
           sip_invite_from_params: xref
-        params = make_params
+        params = make_params params
 
 Originates towards (presumably) OpenSIPS.
 
@@ -197,7 +197,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
         for own k,v of data.params
           params[k] ?= v
 
-        params = make_params data.params
+        params = make_params params
 
         if yield @api "originate {#{params}}sofia/#{@profile}/#{data.destination}@#{data.domain} &park"
           @destination = null
