@@ -290,7 +290,7 @@ Returns:
 
       present: seem (agent) ->
         debug 'Call.present', agent.key
-        @add_tag 'presenting'
+        yield @add_tag 'presenting'
 
         try
 
@@ -308,7 +308,7 @@ We need to send the call to the agent (using either mode A or mode B).
           if @id? and agent_call? and yield @bridge agent_call
             debug 'Call.present: Successfully bridged', @id, agent_call.key
             yield @set 'matched_call', null
-            @add_tag 'bridged'
+            yield @add_tag 'bridged'
             return true
 
           debug 'Call.present: Failed to bridge', @id, agent_call?.key

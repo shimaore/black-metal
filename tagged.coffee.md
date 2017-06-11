@@ -120,7 +120,7 @@ Other tags might be added by the application (for example to add caller-based ta
         super opts
         {tags = []} = opts
         debug 'new TaggedCall', tags
-        @add_tags tags
+        @add_tags tags # async
         @started_at = new Date().getTime()
 
 Tagged Agent
