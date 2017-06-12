@@ -75,7 +75,11 @@ Set
 
           for key in keys
             debug "forEach #{@class_name} #{set_key}: cb", key
-            yield cb key
+            try
+              yield cb key
+            catch error
+              debug.dev "forEach cb on #{key}: #{error.stack ? error}"
+
 
         return
 
@@ -120,7 +124,10 @@ Ordered-Set
             key = values.shift()
             score = values.shift()
             debug "forEach #{@class_name} #{set_key}: cb", key
-            yield cb key
+            try
+              yield cb key
+            catch error
+              debug.dev "sorted_forEach cb on #{key}: #{error.stack ? error}"
 
         return
 
