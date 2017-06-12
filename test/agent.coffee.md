@@ -33,7 +33,11 @@
           redis._[key] ?= {}
           keys = Object.getOwnPropertyNames redis._[key]
           keys = keys.sort (a,b) -> redis._[key][a] - redis._[key][b]
-          Promise.resolve ["0",keys]
+          result = []
+          for member in keys
+            result.push member
+            result.push redis._[key][member]
+          Promise.resolve ["0",result]
         zremAsync: (key,member) ->
           debug 'zrem', key, member
           redis._[key] ?= {}

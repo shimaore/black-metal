@@ -113,10 +113,12 @@ Ordered-Set
         debug "forEach #{@class_name} #{set_key}"
         cursor = 0
         while cursor isnt '0'
-          [cursor,keys] = yield @redis.zscanAsync set_key, cursor
-          debug "forEach #{@class_name} #{set_key}: sscan", cursor, keys
+          [cursor,values] = yield @redis.zscanAsync set_key, cursor
+          debug "forEach #{@class_name} #{set_key}: zscan", cursor, values
 
-          for key in keys
+          while values.length > 1
+            key = values.shift()
+            score = values.shift()
             debug "forEach #{@class_name} #{set_key}: cb", key
             yield cb key
 
