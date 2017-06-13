@@ -115,8 +115,15 @@ When an agent moves to the `idle` state, the queuer picks one call out of the po
 - either an ingress calls (they are always prioritized over egress calls)
 - if no ingress calls require attention, an egress call is created and assigned to the agent.
 
+The method `on_agent_idle` will return true if the agent is still idle after trying to present them with some calls.
+Otherwise it returns false.
+
         on_agent_idle: seem (agent) ->
           debug 'Queuer.on_agent_idle', agent.key
+
+Examine a pool and returns an indication of whether the agent is still idle:
+- return `null` if no call was found (meaning "no changes")
+- return `false` if a call was found and presented to the agent (meaning "no, they are no longer idle").
 
           for_pool = seem (pool) =>
             call = yield agent.topmost pool
@@ -140,9 +147,9 @@ This next line is redundant with what happens in `report_non_idle`, I guess.
                     monitor.end()
                     yield agent.transition 'hangup'
                     monitor = null
-                  return true
+                  return false # in-call
                 when 'missed'
-                  return false
+                  return false # away
             null
 
 The `agent_pool` contains (at least the topmost) calls matching for this agent.
