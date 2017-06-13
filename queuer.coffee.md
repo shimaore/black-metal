@@ -50,7 +50,8 @@
 
         add: seem (agent) ->
           debug 'EgressAgents.add', agent.key
-          score = yield agent.get_missed().catch -> Math.random()/100
+          score = yield agent.get_missed().catch -> 0
+          score += Math.random()/100
           @sorted_add agent.key, score
 
         remove: (agent) ->
