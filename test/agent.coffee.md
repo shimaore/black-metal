@@ -141,7 +141,9 @@
         ok = yield agent.transition 'login'
         ok.should.be.true
         redis._['agent-property-lalala'].should.have.property 'state', 'idle'
-        redis._['pool-zset-egress-agents'].should.have.property 'lalala', 0
+        redis._['pool-zset-egress-agents'].should.have
+          .property 'lalala'
+          .within 0, 1
 
       it 'should trigger call on idle', seem ->
         @timeout 4000
