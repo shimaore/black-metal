@@ -132,6 +132,8 @@ Examine a pool and returns an indication of whether the agent is still idle:
               debug 'Queuer.on_agent_idle present call', agent.key
 
 This next line is redundant with what happens in `report_non_idle`, I guess.
+Well, more precisely the one in `report_non_idle` is redundant with this one.
+Either way, this is idempotent.
 
               yield @egress_agents.remove agent
 
