@@ -134,7 +134,7 @@ Create call data for our call towards (presumably) OpenSIPS.
           hangup_after_bridge: false
           park_after_bridge: true
           progress_timeout: 18
-          originate_timeout: 18
+          originate_timeout: 22
           'sip_h_X-CCNQ3-Endpoint': @destination # Centrex-only
           alert_info: alert_info
           sip_invite_params: xref
