@@ -297,7 +297,7 @@ Returns:
 For a dial-out (egress) call we first need to attempt to contact the destination.
 For a dial-in (ingress) call we already have the proper call UUID.
 
-          exists = yield @originate_external agent
+          exists = yield @originate_external()
 
           return null if not exists
 
