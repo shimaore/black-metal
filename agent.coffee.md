@@ -163,7 +163,6 @@ Start of an off-hook session for the agent
 Attempt to transition to login with the call-id.
 
         agent_call = @new_call id: call_uuid
-        yield agent_call.save()
         unless @__monitor agent_call
           yield agent_call.hangup().catch -> yes
           return false
@@ -310,7 +309,6 @@ Tools
 
       set_call: seem (name,call) ->
         if call?
-          yield call.save()
           yield @set name, call.key
         else
           yield @set name, null

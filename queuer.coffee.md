@@ -172,7 +172,6 @@ Note: it is OK for agent.filter_and_sort to throw away calls that will not make 
 
         queue_ingress_call: seem (call) ->
           debug 'Queuer.queue_ingress_call'
-          yield call.save()
           yield @ingress_pool.add call
           monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
           monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({body}) =>
@@ -198,7 +197,6 @@ An egress pool is a set of dynamically constructed call instances (for example u
 
         queue_egress_call: seem (call) ->
           debug 'Queuer.queue_egress_call'
-          yield call.save()
           yield @egress_pool.add call
           yield @reevaluate_idle_agents()
 

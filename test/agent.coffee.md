@@ -96,6 +96,7 @@
         switch @key
           when 'lululu'
             call = new TestCall destination: '33643482771'
+            yield call.save()
             yield call.set_reference 'hello-world'
             call
           else
@@ -165,6 +166,7 @@
         redis._['agent-property-lalilo'].should.have.property 'state', 'idle'
         redis._['agent-property-laloli'].should.have.property 'state', 'idle'
         call = new TestCall id:'1234'
+        yield call.save()
         yield call.set_reference 'hello-again'
         yield queuer.queue_ingress_call
         in_call = 0
