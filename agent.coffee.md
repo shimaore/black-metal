@@ -128,10 +128,7 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
 
         return unless agent_call?
 
-        monitor = yield agent_call.monitor [
-          'CHANNEL_HANGUP_COMPLETE'
-          'DTMF'
-        ]
+        monitor = yield agent_call.monitor 'CHANNEL_HANGUP_COMPLETE', 'DTMF'
 
         monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({body}) =>
           debug 'Agent.__monitor: channel hangup complete', @key

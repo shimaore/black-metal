@@ -247,10 +247,10 @@ with the gentones notifications.
         @destination = null
         yield @save()
 
-      monitor: seem (events) ->
+      monitor: seem (events...) ->
         debug 'Call.monitor', @id
         client = yield @api "myevents #{@id} json"
-        yield client.event_json events
+        yield client.event_json events...
         client
 
       announce: seem (file) ->

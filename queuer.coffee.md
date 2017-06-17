@@ -145,9 +145,7 @@ Either way, this is idempotent.
               switch result
                 when 'answer'
                   yield pool.remove call
-                  monitor = yield call.monitor [
-                    'CHANNEL_HANGUP_COMPLETE'
-                  ]
+                  monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
                   monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
                     monitor.end()
                     yield agent.transition 'hangup'
@@ -176,7 +174,7 @@ Note: it is OK for agent.filter_and_sort to throw away calls that will not make 
           debug 'Queuer.queue_ingress_call'
           yield call.save()
           yield @ingress_pool.add call
-          monitor = yield call.monitor()
+          monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
           monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({body}) =>
             debug 'Queuer.queue_ingress_call: channel hangup complete', call.key
             monitor.end()
