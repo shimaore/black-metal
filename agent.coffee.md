@@ -163,6 +163,7 @@ Start of an off-hook session for the agent
 Attempt to transition to login with the call-id.
 
         agent_call = @new_call id: call_uuid
+        yield agent_call.save()
         unless @__monitor agent_call
           yield agent_call.hangup().catch -> yes
           return false
@@ -199,6 +200,7 @@ For off-hook the call already exists.
 For on-hook we need to call the agent.
 
         agent_call = @new_call destination: @key
+        yield agent_call.save()
         agent_call = yield agent_call.originate_internal caller
         unless @__monitor agent_call
           agent_call.hangup().catch -> yes
@@ -300,7 +302,7 @@ Tools
       get_call: seem (name) ->
         key = yield @get name
         if key?
-          call = yield @new_call {key}
+          call = @new_call {key}
           yield call.load()
           call
         else

@@ -35,9 +35,7 @@ Create a new profile
           unless @destination? or @id?
             throw new Error 'new Call: either destination or id is required'
 
-and save it (async).
-
-          @save()
+`new Call` MUST be followed by either `.save()` or `.load()`.
 
       save: seem ->
         debug 'Call.save', @key

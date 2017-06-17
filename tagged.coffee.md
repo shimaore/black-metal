@@ -120,8 +120,18 @@ Other tags might be added by the application (for example to add caller-based ta
         super opts
         {tags = []} = opts
         debug 'new TaggedCall', tags
-        @add_tags tags # async
+        @tags = tags
         @started_at = new Date().getTime()
+
+      save: ->
+        super().then seem =>
+          yield @add_tags @tags
+          yield @set 'started-at', @started_at
+
+      load: ->
+        super().then seem =>
+          @tags = yield @tags()
+          @started_at = yield @get 'started-at'
 
 Tagged Agent
 ------------
