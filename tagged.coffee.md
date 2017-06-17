@@ -126,12 +126,13 @@ Other tags might be added by the application (for example to add caller-based ta
       save: ->
         super().then seem =>
           yield @add_tags @__tags
-          delete @__tags
           yield @set 'started-at', @started_at
+          this
 
       load: ->
         super().then seem =>
           @started_at = yield @get 'started-at'
+          this
 
 Tagged Agent
 ------------
