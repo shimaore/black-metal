@@ -145,7 +145,9 @@ Either way, this is idempotent.
               switch result
                 when 'answer'
                   yield pool.remove call
-                  monitor = yield call.monitor()
+                  monitor = yield call.monitor [
+                    'CHANNEL_HANGUP_COMPLETE'
+                  ]
                   monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
                     monitor.end()
                     yield agent.transition 'hangup'

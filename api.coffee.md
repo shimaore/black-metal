@@ -24,7 +24,6 @@ In the later case we reconfigure the client connection so that it behaves just l
               try
                 debug 'api monitor'
                 yield @send cmd
-                yield @event_json 'ALL'
 
 Use linger to capture channel-hangup-complete and other late channel events.
 
