@@ -124,7 +124,8 @@
         api: api
         profile: profile
         get_reference_data: (reference) -> params: {}
-        update_reference_data: (reference_data,call_reference_data) ->
+        update_reference_data: (reference_data) ->
+        update_call_data: (call_data) ->
 
       class TestAgent extends require '../agent'
         redis: redis
