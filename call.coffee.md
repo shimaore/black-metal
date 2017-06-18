@@ -290,6 +290,14 @@ Returns:
 
       present: seem (agent) ->
         debug 'Call.present', agent.key
+
+FIXME replace the tag with a counter and/or list of remote call uuids so that:
+- we can allow multiple presentation;
+- matched-call is replaced by an array so that we can disconnect all the failing calls.
+
+        if yield @presenting()
+          return null
+
         yield @add_tag 'presenting'
 
         try
