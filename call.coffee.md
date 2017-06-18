@@ -296,7 +296,7 @@ FIXME replace the tag with a counter and/or list of remote call uuids so that:
 - we can allow multiple presentation;
 - matched-call is replaced by an array so that we can disconnect all the failing calls.
 
-        count = @incr 'presenting'
+        count = yield @incr 'presenting'
         if count > 1
           return null
 
