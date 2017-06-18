@@ -88,15 +88,6 @@ Agent in off-hook mode
 
 FIXME how do we (re)bind the agent's off-hook call with this incoming call?
 
-            call_reference_data =
-              uuid: @id
-              session: null
-              reports: []
-              start_time: new Date().toJSON()
-              source: source
-              destination: @destination
-
-            data = yield @update_reference_data data, call_reference_data
             return this
           else
             return null
@@ -112,18 +103,7 @@ Agent in on-hook mode
         data._in ?= []
         data._in.push endpoint unless endpoint in data._in
         data.state = 'originate-internal'
-
-Create call data for our call towards (presumably) OpenSIPS.
-
-        call_reference_data =
-          uuid: id
-          session: null
-          reports: []
-          start_time: new Date().toJSON()
-          source: source
-          destination: @destination
-
-        data = yield @update_reference_data data, call_reference_data
+        data = yield @update_reference_data data
 
         xref = "xref:#{reference}"
         params =
@@ -279,6 +259,12 @@ with the gentones notifications.
 
       get_reference: ->
         @get 'reference'
+
+      set_session: (session) ->
+        @set 'session', session
+
+      get_session: ->
+        @get 'session'
 
 Present
 -------

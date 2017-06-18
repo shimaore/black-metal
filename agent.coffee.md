@@ -165,16 +165,16 @@ Attempt to transition to login with the call-id.
         agent_call = @new_call id: call_uuid
         unless @__monitor agent_call
           yield agent_call.hangup().catch -> yes
-          return false
+          return null
 
         yield agent_call.save()
         yield @set_offhook_call agent_call
         unless yield @transition 'login'
           debug 'Agent.accept_offhook transition failed, hanging up'
           yield @__hangup_offhook()
-          return false
+          return null
 
-        true
+        agent_call
 
 Start of an on-hook session for the agent
 -----------------------------------------
