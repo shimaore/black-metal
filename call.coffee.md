@@ -298,6 +298,7 @@ FIXME replace the tag with a counter and/or list of remote call uuids so that:
 
         count = yield @incr 'presenting'
         if count > 1
+          yield @incr 'presenting', -1
           return null
 
         response = null
