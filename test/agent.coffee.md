@@ -22,6 +22,11 @@
           debug 'hget', key, field
           redis._[key] ?= {}
           Promise.resolve redis._[key][field]
+        hincrbyAsync: (key,field,inc) ->
+          debug 'hincrby', key, field, inc
+          redis._[key] ?= {}
+          redis._[key][field] ?= 0
+          Promise.resolve redis._[key][field] += inc
         zaddAsync: (key,score,member) ->
           debug 'zadd', key, member,score
           redis._[key] ?= {}

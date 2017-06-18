@@ -256,7 +256,8 @@ with the gentones notifications.
         yield @api "uuid_broadcast #{@id} #{file}"
 
       presenting: seem ->
-        yield @has_tag 'presenting'
+        count = yield @get 'presenting'
+        count > 0
 
       bridged: seem ->
         yield @has_tag 'bridged'
@@ -295,10 +296,11 @@ FIXME replace the tag with a counter and/or list of remote call uuids so that:
 - we can allow multiple presentation;
 - matched-call is replaced by an array so that we can disconnect all the failing calls.
 
-        if yield @presenting()
+        count = @incr 'presenting'
+        if count > 1
           return null
 
-        yield @add_tag 'presenting'
+        response = null
 
         try
 
@@ -320,14 +322,13 @@ We need to send the call to the agent (using either mode A or mode B).
             return true
 
           debug 'Call.present: Failed to bridge', @id, agent_call?.key
-          yield @del_tag 'presenting'
           if not agent_call?
-            return false
+            response = false
 
         catch error
           debug "Call.present: #{error.stack ? error}"
-          yield @del_tag 'presenting'
 
-        null
+        yield @incr 'presenting', -1
+        response
 
     module.exports = Call
