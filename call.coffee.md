@@ -105,6 +105,8 @@ Agent in on-hook mode
         data.state = 'originate-internal'
         data = yield @update_reference_data data
 
+        music = yield caller.get_music()
+
         xref = "xref:#{reference}"
         params =
           origination_uuid: id
@@ -119,6 +121,8 @@ Agent in on-hook mode
           sip_invite_to_params: xref
           sip_invite_contact_params: xref
           sip_invite_from_params: xref
+          ringback: music
+          hold_music: music
         params = make_params params
 
 Originates towards (presumably) OpenSIPS.
@@ -265,6 +269,12 @@ with the gentones notifications.
 
       get_session: ->
         @get 'session'
+
+      set_music: (uri) ->
+        @set 'music', uri
+
+      get_music: ->
+        @get 'music'
 
 Present
 -------
