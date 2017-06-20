@@ -126,9 +126,15 @@ Examine a pool and returns an indication of whether the agent is still idle:
 - return `null` if no call was found (meaning "no changes")
 - return `false` if a call was found and presented to the agent (meaning "no, they are no longer idle").
 
-          for_pool = seem (pool) =>
+          for_pool = seem (pool,remove_before = false) =>
             call = yield agent.topmost pool
             if call?
+
+For egress calls, ensure the same call is not attempted twice to two different agents (at the same time) or to the same agent (one time after the other).
+
+              if remove_before
+                yield pool.remove call
+
               debug 'Queuer.on_agent_idle present call', agent.key
 
 This next line is redundant with what happens in `report_non_idle`, I guess.
@@ -162,7 +168,7 @@ The `agent_pool` contains (at least the topmost) calls matching for this agent.
           return result if result?
 
           debug 'Queuer.on_agent_idle: egress pool', agent.key
-          result = yield for_pool @egress_pool
+          result = yield for_pool @egress_pool, true
           return result if result?
 
           debug 'Queuer.on_agent_idle no call', agent.key
