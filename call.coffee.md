@@ -63,6 +63,8 @@ Originate a call towards an agent
 
 Make sure to define the `api` method` and the `profile` member.
 
+The destination endpoint is stored as the `@destination` field.
+
       originate_internal: seem (caller) ->
         debug 'Call.originate', @key, @destination
 
@@ -139,6 +141,8 @@ Originates towards (presumably) OpenSIPS.
 
 Originate a call towards a third-party
 --------------------------------------
+
+The `reference` ID is stored as the `@destination` field.
 
       originate_external: seem ->
         debug 'Call.originate_external', @key, @destination
