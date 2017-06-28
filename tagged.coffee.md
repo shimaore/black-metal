@@ -118,14 +118,15 @@ Other tags might be added by the application (for example to add caller-based ta
 
       constructor: (opts) ->
         super opts
-        {tags = []} = opts
-        debug 'new TaggedCall', tags
-        @__tags = tags
+        debug 'new TaggedCall'
         @started_at = new Date().getTime()
+
+      set_tags: seem (tags) ->
+        yield @clear_tags()
+        yield @add_tags tags
 
       save: ->
         super().then seem =>
-          yield @add_tags @__tags
           yield @set 'started-at', @started_at
           this
 
