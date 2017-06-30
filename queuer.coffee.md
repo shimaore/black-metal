@@ -131,39 +131,47 @@ Examine a pool and returns an indication of whether the agent is still idle:
           for_pool = seem (pool,remove_before = false) =>
             calls = yield pool.calls()
             call = yield agent.policy calls
-            if call?
+            return null if not call?
 
 For egress calls, ensure the same call is not attempted twice to two different agents (at the same time) or to the same agent (one time after the other).
 
-              if remove_before
-                yield pool.remove call
+            if remove_before
+              yield pool.remove call
 
-              debug 'Queuer.on_agent_idle present call', agent.key
+            debug 'Queuer.on_agent_idle present call', agent.key, call.key
 
 This next line is redundant with what happens in `report_non_idle`, I guess.
 Well, more precisely the one in `report_non_idle` is redundant with this one.
 Either way, this is idempotent.
 
-              yield @available_agents.remove agent
+            yield @available_agents.remove agent
 
-              yield agent.notify? 'present',
-                call: call.key
-                remote_number: yield call.get_remote_number()
+            notification_data =
+              agent: agent.key
+              call: call.key
+              destination: call.destination
+              remote_number: yield call.get_remote_number()
 
-              result = yield agent.present call
-              switch result
-                when 'answer'
-                  yield pool.remove call
-                  monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
-                  monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
-                    monitor.end()
-                    yield agent.transition 'hangup'
-                    monitor = null
-                  return false # in-call
-                when 'missed'
-                  return false # away
-                when 'missing'
-                  yield pool.remove call
+            result = yield agent.present call, notification_data
+            debug "Queuer.on_agent_idle present call: #{result}", notification_data
+            switch result
+              when 'answer'
+                yield pool.remove call
+                monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
+                monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+                  monitor.end()
+                  yield agent.transition 'hangup', notification_data
+                  monitor = null
+                yield agent.transition 'answer', notification_data
+                return false # in-call
+              when 'missed'
+                yield agent.transition 'missed', notification_data
+                return false # away
+              when 'missing'
+                yield pool.remove call
+                yield agent.transition 'failed', notification_data
+              when 'failed'
+                yield agent.transition 'failed', notification_data
 
             null
 
@@ -177,7 +185,7 @@ The `agent_pool` contains (at least the topmost) calls matching for this agent.
           result = yield for_pool @egress_pool, true
           return result if result?
 
-          debug 'Queuer.on_agent_idle no call', agent.key
+          debug 'Queuer.on_agent_idle: no call', agent.key
           yield agent.park()
 
 Note: it is OK for agent.filter_and_sort to throw away calls that will not make it to the top, since only the first element of the resulting pool will ever be used.
