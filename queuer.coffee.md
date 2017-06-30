@@ -110,7 +110,7 @@ For a given agent, their pool of ingress-calls-to-handle is therefor a subset of
           debug 'new Queuer'
           @ingress_pool = new Pool 'ingress_pool'
           @egress_pool = new Pool 'egress_pool'
-          @egress_agents = new EgressAgents this
+          @available_agents = new EgressAgents this
 
 When an agent moves to the `idle` state, the queuer picks one call out of the pool:
 - either an ingress calls (they are always prioritized over egress calls)
@@ -141,7 +141,7 @@ This next line is redundant with what happens in `report_non_idle`, I guess.
 Well, more precisely the one in `report_non_idle` is redundant with this one.
 Either way, this is idempotent.
 
-              yield @egress_agents.remove agent
+              yield @available_agents.remove agent
 
               yield agent.notify? 'present',
                 call: call.key
@@ -209,16 +209,16 @@ An egress pool is a set of dynamically constructed call instances (for example u
 
         report_idle: seem (agent) ->
           debug 'Queuer.report_idle', agent.key
-          yield @egress_agents.add agent
+          yield @available_agents.add agent
           yield @create_egress_call_for agent
 
         report_non_idle: (agent) ->
           debug 'Queuer.report_non_idle', agent.key
-          @egress_agents.remove agent
+          @available_agents.remove agent
 
         reevaluate_idle_agents: ->
           debug 'Queuer.reevaluate_idle_agents'
-          @egress_agents.reevaluate (agent) =>
+          @available_agents.reevaluate (agent) =>
             debug 'Queuer.reevaluate_idle_agents', agent.key
             @on_agent_idle agent
 
