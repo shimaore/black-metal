@@ -9,6 +9,10 @@
       now = new Date() .toJSON()
       now[0...8] + uuidV4()
 
+    sleep = (timeout) ->
+      new Promise (resolve) ->
+        setTimeout resolve, timeout
+
 Main Queuer
 ===========
 

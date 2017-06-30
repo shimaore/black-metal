@@ -10,10 +10,6 @@ Agent
     minutes = 60*seconds
     timeout_duration = 12*seconds
 
-    sleep = (timeout) ->
-      new Promise (resolve) ->
-        setTimeout resolve, timeout
-
     class Agent extends RedisClient
       constructor: (@queuer,key) ->
         throw new Error 'Agent requires queuer' unless @queuer?
