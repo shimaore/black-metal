@@ -66,7 +66,7 @@ Make sure to define the `api` method` and the `profile` member.
 The destination endpoint is stored as the `@destination` field.
 
       originate_internal: seem (caller) ->
-        debug 'Call.originate', @key, @destination
+        debug 'Call.originate_internal', @key, @destination
 
 The `reference` is set either:
 - by huge-play/middleware/client/fifo for an ingress call;
@@ -75,7 +75,7 @@ The `reference` is set either:
         reference = yield caller.get_reference()
 
         unless reference?
-          debug.dev 'Call.originate: caller has no reference', caller.key, @key, @destination
+          debug.dev 'Call.originate_internal: caller has no reference', caller.key, @key, @destination
           return null
 
         data = yield caller.get_reference_data reference
