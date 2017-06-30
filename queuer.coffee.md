@@ -233,17 +233,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
             yield agent.set_remote_call call
             yield agent.reset_missed()
 
-            multi = yield agent.has_tag 'multi'
-
-Do not remove the call if the agent is ringing in paralel.
-
-            if multi
-              debug 'Queuer.on_agent_idle send_to_agent: agent has `multi`, leaving call in pool', agent.key, call.key, call.id, agent_call.key
-
-Do not break if the call was previously removed (normal on egress).
-
-            else
-              yield pool.remove(call).catch -> yes
+            yield pool.remove(call).catch -> yes
 
             monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
             monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
