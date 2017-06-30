@@ -141,6 +141,7 @@ or (in case of multiple presentations) when someone picks the call up.
           yield @set_reference reference
           this
         else
+          yield caller.remove id
           null
 
 Originate a call towards a third-party

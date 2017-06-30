@@ -197,7 +197,11 @@ For on-hook we need to call the agent.
         agent_call = @new_call destination: @key
         yield agent_call.save()
         agent_call = yield agent_call.originate_internal caller
+        unless agent_call?
+          return null
+
         unless @__monitor agent_call
+          yield caller.remove(agent_call).catch -> yes
           agent_call.hangup().catch -> yes
           return null
 

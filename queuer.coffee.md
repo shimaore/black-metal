@@ -221,6 +221,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
             debug 'Queuer.on_agent_idle send_to_agent: bridge', agent.key, call.key
 
             unless yield call.bridge agent_call
+              yield call.remove(agent_call).catch -> yes
               yield agent_call.hangup()
               yield agent.transition 'failed', notification_data
               return false
