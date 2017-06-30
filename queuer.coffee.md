@@ -201,7 +201,7 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
 We need to send the call to the agent (using either onhook or offhook mode).
 
-          send_to_agent = (agent,call) ->
+          send_to_agent = seem (agent,call) ->
 
             debug 'Queuer.on_agent_idle send_to_agent: originate', agent.key, call.key
 
