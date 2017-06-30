@@ -251,7 +251,7 @@ with the gentones notifications.
         yield @api "uuid_broadcast #{@id} #{file}"
 
       presenting: seem ->
-        count = yield @get 'presenting'
+        count = yield @count()
         count > 0
 
       bridged: seem ->
@@ -287,26 +287,19 @@ with the gentones notifications.
       get_music: ->
         @get 'music'
 
-Present
--------
+Originate-and-Bridge (aka Present)
+----------------------------------
 
-Present the current call to the given agent.
+Present the current call to the given agent by first rinding the agent,
+and then bridging this call with the agent if the agent answered.
+
 Returns:
 - true if success
 - false if failure due to the agent (no response)
 - null if failure due to other element.
 
-      present: seem (agent) ->
-        debug 'Call.present', agent.key
-
-FIXME replace the tag with a counter and/or list of remote call uuids so that:
-- we can allow multiple presentation;
-- matched-call is replaced by an array so that we can disconnect all the failing calls.
-
-        count = yield @incr 'presenting'
-        if count > 1
-          yield @incr 'presenting', -1
-          return null
+      originate_and_bridge: seem (agent) ->
+        debug 'Call.present', @key, agent.key
 
         response = null
 
@@ -325,7 +318,7 @@ We need to send the call to the agent (using either mode A or mode B).
 
           if @id? and agent_call? and yield @bridge agent_call
             debug 'Call.present: Successfully bridged', @id, agent_call.key
-            yield @set 'matched_call', null
+            yield @unbridge_except agent_call.key
             yield @add_tag 'bridged'
             return true
 
@@ -336,7 +329,6 @@ We need to send the call to the agent (using either mode A or mode B).
         catch error
           debug "Call.present: #{error.stack ? error}"
 
-        yield @incr 'presenting', -1
         response
 
     module.exports = Call

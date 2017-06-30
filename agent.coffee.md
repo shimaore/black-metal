@@ -240,26 +240,26 @@ Present a call to this agent
 ----------------------------
 
       present: seem (call) ->
-        debug 'Agent.present', call
+        debug 'Agent.present', @key, call.key
         notification_data =
           key: call.key
           destination: call.destination
         if yield @transition 'present', notification_data
           yield sleep 2*1000
-          switch yield call.present this
+          switch yield call.originate_and_bridge this
             when true # success
-              debug 'Agent.present: answer'
+              debug 'Agent.present: answer', @key, call.key
               yield @set_remote_call call
               yield @reset_missed()
               yield @transition 'answer', notification_data
               return 'answer'
             when false # failure, agent-side
-              debug 'Agent.present: missed'
+              debug 'Agent.present: missed', @key, call.key
               yield @incr_missed()
               yield @transition 'missed', notification_data
               return 'missed'
             else # failure, other
-              debug 'Agent.present: failed'
+              debug 'Agent.present: failed', @key, call.key
               yield @transition 'failed', notification_data
               return 'failed'
         return
