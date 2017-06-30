@@ -153,12 +153,6 @@ For egress calls, ensure the same call is not attempted twice to two different a
 
             debug 'Queuer.on_agent_idle build_call: agent is no longer available', agent.key, call.key
 
-This next line is redundant with what happens in `report_non_idle`, I guess.
-Well, more precisely the one in `report_non_idle` is redundant with this one.
-Either way, this is idempotent.
-
-            yield @available_agents.remove agent
-
 Notify: this could be used for example to present a popup to the agent.
 
             notification_data =
@@ -172,8 +166,11 @@ Transition the agent.
             debug 'Queuer.on_agent_idle build_call: transition the agent', agent.key, call.key
 
             if not yield agent.transition 'present', notification_data
+              debug 'Queuer.on_agent_idle build_call: transition failed', agent.key, call.key
               yield agent.transition 'failed', notification_data
               return null
+
+            debug 'Queuer.on_agent_idle build_call: transitioned, waiting for 2s', agent.key, call.key
 
             yield sleep 2*1000
 
@@ -227,10 +224,16 @@ We need to send the call to the agent (using either onhook or offhook mode).
             yield agent.reset_missed()
 
             multi = yield agent.has_tag 'multi'
+
+Do not remove the call if the agent is ringing in paralel.
+
             if multi
               debug 'Queuer.on_agent_idle send_to_agent: agent has `multi`, leaving call in pool', agent.key, call.key, call.id, agent_call.key
+
+Do not break if the call was previously removed (normal on egress).
+
             else
-              yield pool.remove call
+              yield pool.remove(call).catch -> yes
 
             monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
             monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
@@ -245,26 +248,55 @@ We need to send the call to the agent (using either onhook or offhook mode).
 Main body for `on_agent_idle`
 -----------------------------
 
+Ingress pool
+
           debug 'Queuer.on_agent_idle: ingress pool', agent.key
-          client_call = yield build_call(@ingress_pool).catch -> null
+
+          client_call = yield build_call(@ingress_pool).catch (error) ->
+            debug.ops 'Queuer.on_agent_idle: ingress pool, error in build_call', error.stack ? error.toString()
+            null
+
           if client_call?
+
             debug 'Queuer.on_agent_idle: ingress pool, got client call', agent.key
-            answered = yield build_call agent, client_call
+
+            answered = yield send_to_agent(agent, client_call).catch (error) ->
+              debug.ops 'Queuer.on_agent_idle: ingress pool, error in send_to_agent', error.stack ? error.toString()
+              null
+
             debug "Queuer.on_agent_idle: ingress pool, agent answered=#{answered}", agent.key
             return false if answered
 
+          else
+            debug "Queuer.on_agent_idle: ingress pool, no matching client call", agent.key
+
+Egress pool
+
           debug 'Queuer.on_agent_idle: egress pool', agent.key
-          client_call = yield build_call(@egress_pool, true).catch -> true
+
+          client_call = yield build_call(@egress_pool, true).catch (error) ->
+            debug.ops 'Queuer.on_agent_idle: egress pool, error in build_call', error.stack ? error.toString()
+            null
+
           if client_call?
+
             debug 'Queuer.on_agent_idle: egress pool, got client call', agent.key
-            answered = yield build_call agent, client_call
+
+            answered = yield send_to_agent(agent, client_call).catch(error) ->
+              debug.ops 'Queuer.on_agent_idle: egress pool, error in send_to_agent', error.stack ? error.toString()
+              null
+
             debug "Queuer.on_agent_idle: egress pool, agent answered=#{answered}", agent.key
             return false if answered
+
+          else
+            debug "Queuer.on_agent_idle: egress pool, no matching client call", agent.key
+
+No call
 
           debug 'Queuer.on_agent_idle: no call', agent.key
           yield agent.park()
 
-Note: it is OK for agent.filter_and_sort to throw away calls that will not make it to the top, since only the first element of the resulting pool will ever be used.
 
         queue_ingress_call: seem (call) ->
           debug 'Queuer.queue_ingress_call'
