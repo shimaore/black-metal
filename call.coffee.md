@@ -129,7 +129,11 @@ Agent in on-hook mode
 
 Originates towards (presumably) OpenSIPS.
 
-        yield caller.set 'matched_call', id
+Add our call to the matched set on the caller's side so that we can stop the call(s) if the caller hangs up
+or (in case of multiple presentations) when someone picks the call up.
+
+        yield caller.add id
+
         if yield @api "originate {#{params}}sofia/#{@profile}/#{@destination} &park"
           @destination = null
           @id = id
@@ -137,6 +141,7 @@ Originates towards (presumably) OpenSIPS.
           yield @set_reference reference
           this
         else
+          yield caller.remove id
           null
 
 Originate a call towards a third-party
@@ -153,7 +158,7 @@ Ingress (or otherwise existing) call
           if yield @exists()
             return this
           else
-            return null
+            return 'missing'
 
 Egress call
 
@@ -166,7 +171,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
         data = yield @get_reference_data reference
 
         unless data?
-          return null
+          return 'missing'
 
         xref = "xref:#{reference}"
         params =
@@ -192,7 +197,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
           yield @set_reference reference
           this
         else
-          null
+          'failed'
 
       bridge: seem (agent_call) ->
         debug 'Call.bridge', @id, agent_call.id
@@ -201,11 +206,14 @@ This is similar to what we do with `place-call` but we're calling the other way 
         yield sleep 400
         yield @api "uuid_bridge #{@id} #{agent_call.id}"
 
-      unbridge: seem ->
-        debug 'Call.unbridge', @id
-        id = yield @get 'matched_call'
-        if id?
-          yield @api "uuid_kill #{id}"
+Remove all the matched calls, except maybe one.
+
+      unbridge_except: seem (except = null) ->
+        debug 'Call.unbridge_except', @id, except
+        yield @forEach (id) =>
+          return if id is except
+          @api("uuid_kill #{id}").catch -> yes
+        yield @clear()
 
       park: seem ->
         debug 'Call.park', @id
@@ -244,7 +252,7 @@ with the gentones notifications.
         yield @api "uuid_broadcast #{@id} #{file}"
 
       presenting: seem ->
-        count = yield @get 'presenting'
+        count = yield @count()
         count > 0
 
       bridged: seem ->
@@ -279,57 +287,5 @@ with the gentones notifications.
 
       get_music: ->
         @get 'music'
-
-Present
--------
-
-Present the current call to the given agent.
-Returns:
-- true if success
-- false if failure due to the agent (no response)
-- null if failure due to other element.
-
-      present: seem (agent) ->
-        debug 'Call.present', agent.key
-
-FIXME replace the tag with a counter and/or list of remote call uuids so that:
-- we can allow multiple presentation;
-- matched-call is replaced by an array so that we can disconnect all the failing calls.
-
-        count = yield @incr 'presenting'
-        if count > 1
-          yield @incr 'presenting', -1
-          return null
-
-        response = null
-
-        try
-
-For a dial-out (egress) call we first need to attempt to contact the destination.
-For a dial-in (ingress) call we already have the proper call UUID.
-
-          exists = yield @originate_external()
-
-          return null if not exists
-
-We need to send the call to the agent (using either mode A or mode B).
-
-          agent_call = yield agent.originate this
-
-          if @id? and agent_call? and yield @bridge agent_call
-            debug 'Call.present: Successfully bridged', @id, agent_call.key
-            yield @set 'matched_call', null
-            yield @add_tag 'bridged'
-            return true
-
-          debug 'Call.present: Failed to bridge', @id, agent_call?.key
-          if not agent_call?
-            response = false
-
-        catch error
-          debug "Call.present: #{error.stack ? error}"
-
-        yield @incr 'presenting', -1
-        response
 
     module.exports = Call

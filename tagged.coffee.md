@@ -16,6 +16,14 @@ The policy is:
 
         debug 'Checking call for agent', call.key, @key
 
+        presenting = yield call.presenting()
+
+        if presenting and not yield @has_tag 'multi'
+          debug 'Call is already being presented', call.key, @key
+          return false
+
+        call.waiting = if presenting then 0 else 1
+
         call_tags = new Set yield call.tags()
 
 - domains must match
@@ -52,11 +60,14 @@ The policy is:
         return true
 
       sorted = filtered.sort (a,b) ->
+
         a_prio = a.priority
         b_prio = b.priority
+        waiting = a.waiting - b.waiting
         fifo = a.started_at - b.started_at
 
 - sort higher priority calls first
+- calls which are not being presented yet get preference
 - equal priority calls are presented first-in first-out
 
         if not a_prio? and not b_prio?
@@ -65,7 +76,7 @@ The policy is:
           return 1
         if b_prio? and not a_prio?
           return -1
-        (a_prio - b_prio) or fifo
+        (a_prio - b_prio) or waiting or fifo
 
       sorted[0]
 

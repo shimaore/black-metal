@@ -10,10 +10,6 @@ Agent
     minutes = 60*seconds
     timeout_duration = 12*seconds
 
-    sleep = (timeout) ->
-      new Promise (resolve) ->
-        setTimeout resolve, timeout
-
     class Agent extends RedisClient
       constructor: (@queuer,key) ->
         throw new Error 'Agent requires queuer' unless @queuer?
@@ -201,7 +197,11 @@ For on-hook we need to call the agent.
         agent_call = @new_call destination: @key
         yield agent_call.save()
         agent_call = yield agent_call.originate_internal caller
+        unless agent_call?
+          return null
+
         unless @__monitor agent_call
+          yield caller.remove(agent_call).catch -> yes
           agent_call.hangup().catch -> yes
           return null
 
@@ -235,44 +235,6 @@ Notify start of wrapup time to an agent
         agent_call ?= yield @get_onhook_call()
         if agent_call?
           yield agent_call.wrapup()
-
-Topmost call for this agent
----------------------------
-
-      topmost: seem (pool) ->
-        debug 'Agent.topmost', @key, pool.name
-
-ignore ringing calls
-
-        @policy yield pool.not_presenting()
-
-Present a call to this agent
-----------------------------
-
-      present: seem (call) ->
-        debug 'Agent.present', call
-        notification_data =
-          key: call.key
-          destination: call.destination
-        if yield @transition 'present', notification_data
-          yield sleep 2*1000
-          switch yield call.present this
-            when true # success
-              debug 'Agent.present: answer'
-              yield @set_remote_call call
-              yield @reset_missed()
-              yield @transition 'answer', notification_data
-              return 'answer'
-            when false # failure, agent-side
-              debug 'Agent.present: missed'
-              yield @incr_missed()
-              yield @transition 'missed', notification_data
-              return 'missed'
-            else # failure, other
-              debug 'Agent.present: failed'
-              yield @transition 'failed', notification_data
-              return 'failed'
-        return
 
       disconnect_remote: seem ->
         debug 'Agent.disconnect_remote'

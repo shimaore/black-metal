@@ -158,7 +158,7 @@
         agent = new TestAgent queuer, 'lululu'
         ok = yield agent.transition 'login'
         ok.should.be.true
-        redis._['agent-property-lululu'].should.have.property 'state', 'in_call'
+        redis._['agent-property-lululu'].should.have.property 'state', 'presenting'
 
       it 'should transition on ingress', seem ->
         @timeout 4000

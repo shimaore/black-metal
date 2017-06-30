@@ -9,6 +9,13 @@
       now = new Date() .toJSON()
       now[0...8] + uuidV4()
 
+    sleep = (timeout) ->
+      new Promise (resolve) ->
+        setTimeout resolve, timeout
+
+Main Queuer
+===========
+
     module.exports = ({redis,Agent,Call}) ->
 
       class Pool extends RedisClient
@@ -29,15 +36,14 @@
           debug 'Pool.has', @name, call.key
           super call.key
 
-        not_presenting: seem ->
-          debug 'Pool.not_presenting', @key
+        calls: seem ->
+          debug 'Pool.all', @key
           result = []
-          yield @forEach seem (key) =>
+          yield @forEach seem (key) ->
             call = new Call {key}
             yield call.load()
-            if not yield call.presenting()
-              result.push call
-          debug 'Pool.not_presenting', @key, result
+            result.push call
+          debug 'Pool.all', @key, result
           result
 
       class EgressAgents extends RedisClient
@@ -122,59 +128,178 @@ Otherwise it returns false.
         on_agent_idle: seem (agent) ->
           debug 'Queuer.on_agent_idle', agent.key
 
-Examine a pool and returns an indication of whether the agent is still idle:
-- return `null` if no call was found (meaning "no changes")
-- return `false` if a call was found and presented to the agent (meaning "no, they are no longer idle").
+Build Call
+----------
 
-          for_pool = seem (pool,remove_before = false) =>
-            call = yield agent.topmost pool
-            if call?
+Return:
+- a Call (towards or from a selected third-party),
+- or `null`.
+
+          build_call = seem (pool,remove_before = false) =>
+
+            debug 'Queuer.on_agent_idle build_call', agent.key
+
+The first step is for the agent to find a suitable call in the pool.
+
+            calls = yield pool.calls()
+            call = yield agent.policy calls
+
+If no call was found the agent's state is unmodified.
+
+            if not call?
+              debug 'Queuer.on_agent_idle build_call: no call found', agent.key
+              return null
 
 For egress calls, ensure the same call is not attempted twice to two different agents (at the same time) or to the same agent (one time after the other).
 
-              if remove_before
+            if remove_before
+              yield pool.remove call
+
+            debug 'Queuer.on_agent_idle build_call: agent is no longer available', agent.key, call.key
+
+Notify: this could be used for example to present a popup to the agent.
+
+            notification_data =
+              agent: agent.key
+              call: call.key
+              destination: call.destination
+              remote_number: yield call.get_remote_number()
+
+Transition the agent.
+
+            debug 'Queuer.on_agent_idle build_call: transition the agent', agent.key, call.key
+
+            if not yield agent.transition 'present', notification_data
+              debug 'Queuer.on_agent_idle build_call: transition failed', agent.key, call.key
+              yield agent.transition 'failed', notification_data
+              return null
+
+            debug 'Queuer.on_agent_idle build_call: transitioned, waiting for 2s', agent.key, call.key
+
+            yield sleep 2*1000
+
+For a dial-out (egress) call we first need to attempt to contact the destination.
+For a dial-in (ingress) call we already have the proper call UUID.
+
+            exists = yield call.originate_external()
+
+            debug 'Queuer.on_agent_idle build_call: originate external returned', agent.key, call.key, call.id, exists
+
+            switch exists
+              when 'missing'
                 yield pool.remove call
+                return null
+              when 'failed' # only for outbound calls
+                yield pool.remove call
+                return null
 
-              debug 'Queuer.on_agent_idle present call', agent.key
+            if not call.id?
+              yield pool.remove call
+              return null
 
-This next line is redundant with what happens in `report_non_idle`, I guess.
-Well, more precisely the one in `report_non_idle` is redundant with this one.
-Either way, this is idempotent.
+            return call
 
-              yield @available_agents.remove agent
+We need to send the call to the agent (using either onhook or offhook mode).
 
-              yield agent.notify? 'present',
-                call: call.key
-                remote_number: yield call.get_remote_number()
+          send_to_agent = seem (agent,call) ->
 
-              result = yield agent.present call
-              switch result
-                when 'answer'
-                  yield pool.remove call
-                  monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
-                  monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
-                    monitor.end()
-                    yield agent.transition 'hangup'
-                    monitor = null
-                  return false # in-call
-                when 'missed'
-                  return false # away
-            null
+            debug 'Queuer.on_agent_idle send_to_agent: originate', agent.key, call.key
 
-The `agent_pool` contains (at least the topmost) calls matching for this agent.
+            agent_call = yield agent.originate call
+
+            notification_data =
+              agent: agent.key
+              call: call.key
+              destination: call.destination
+              remote_number: yield call.get_remote_number()
+
+            unless agent_call?
+              yield agent.incr_missed()
+              yield agent.transition 'missed', notification_data
+              return false
+
+            debug 'Queuer.on_agent_idle send_to_agent: bridge', agent.key, call.key
+
+            unless yield call.bridge agent_call
+              yield call.remove(agent_call).catch -> yes
+              yield agent_call.hangup()
+              yield agent.transition 'failed', notification_data
+              return false
+
+            debug 'Queuer.on_agent_idle send_to_agent: Successfully bridged', agent.key, call.key, call.id, agent_call.key
+
+            yield call.add_tag 'bridged'
+            yield call.unbridge_except agent_call.key
+
+            yield agent.set_remote_call call
+            yield agent.reset_missed()
+
+            yield pool.remove(call).catch -> yes
+
+            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
+            monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+              debug 'Queuer.on_agent_idle send_to_agent: caller hung up', agent.key
+              monitor.end()
+              monitor = null
+              yield agent.transition 'hangup', notification_data
+
+            debug 'Queuer.on_agent_idle send_to_agent: transition agent', agent.key, call.key, call.id, agent_call.key
+            yield agent.transition 'answer', notification_data
+
+Main body for `on_agent_idle`
+-----------------------------
+
+Ingress pool
 
           debug 'Queuer.on_agent_idle: ingress pool', agent.key
-          result = yield for_pool @ingress_pool
-          return result if result?
+
+          client_call = yield build_call(@ingress_pool).catch (error) ->
+            debug.ops 'Queuer.on_agent_idle: ingress pool, error in build_call', error.stack ? error.toString()
+            null
+
+          if client_call?
+
+            debug 'Queuer.on_agent_idle: ingress pool, got client call', agent.key
+
+            answered = yield send_to_agent(agent, client_call).catch (error) ->
+              debug.ops 'Queuer.on_agent_idle: ingress pool, error in send_to_agent', error.stack ? error.toString()
+              null
+
+            debug "Queuer.on_agent_idle: ingress pool, agent answered=#{answered}", agent.key
+            return true if answered is null
+            return false if answered
+
+          else
+            debug "Queuer.on_agent_idle: ingress pool, no matching client call", agent.key
+
+Egress pool
 
           debug 'Queuer.on_agent_idle: egress pool', agent.key
-          result = yield for_pool @egress_pool, true
-          return result if result?
 
-          debug 'Queuer.on_agent_idle no call', agent.key
+          client_call = yield build_call(@egress_pool, true).catch (error) ->
+            debug.ops 'Queuer.on_agent_idle: egress pool, error in build_call', error.stack ? error.toString()
+            null
+
+          if client_call?
+
+            debug 'Queuer.on_agent_idle: egress pool, got client call', agent.key
+
+            answered = yield send_to_agent(agent, client_call).catch(error) ->
+              debug.ops 'Queuer.on_agent_idle: egress pool, error in send_to_agent', error.stack ? error.toString()
+              null
+
+            debug "Queuer.on_agent_idle: egress pool, agent answered=#{answered}", agent.key
+            return true if answered is null
+            return false if answered
+
+          else
+            debug "Queuer.on_agent_idle: egress pool, no matching client call", agent.key
+
+No call
+
+          debug 'Queuer.on_agent_idle: no call', agent.key
           yield agent.park()
 
-Note: it is OK for agent.filter_and_sort to throw away calls that will not make it to the top, since only the first element of the resulting pool will ever be used.
 
         queue_ingress_call: seem (call) ->
           debug 'Queuer.queue_ingress_call'
@@ -196,8 +321,7 @@ Note: it is OK for agent.filter_and_sort to throw away calls that will not make 
         hungup_ingress_call: seem (call) ->
           debug 'Queuer.hungup_ingress_call'
           yield call.load()
-          yield call.unbridge()
-          # FIXME: stop ringing if we are presenting the call
+          yield call.unbridge_except()
           yield @ingress_pool.remove call
 
 An egress pool is a set of dynamically constructed call instances (for example using an iterator). The call instance is created using data found e.g. in a database, the (egress) call is placed in the pool, and the idle agents are re-evaluated.
