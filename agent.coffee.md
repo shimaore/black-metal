@@ -236,16 +236,6 @@ Notify start of wrapup time to an agent
         if agent_call?
           yield agent_call.wrapup()
 
-Topmost call for this agent
----------------------------
-
-      topmost: seem (pool) ->
-        debug 'Agent.topmost', @key, pool.name
-
-ignore ringing calls
-
-        @policy yield pool.not_presenting()
-
 Present a call to this agent
 ----------------------------
 

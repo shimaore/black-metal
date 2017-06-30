@@ -9,6 +9,9 @@
       now = new Date() .toJSON()
       now[0...8] + uuidV4()
 
+Main Queuer
+===========
+
     module.exports = ({redis,Agent,Call}) ->
 
       class Pool extends RedisClient
@@ -126,7 +129,8 @@ Examine a pool and returns an indication of whether the agent is still idle:
 - return `false` if a call was found and presented to the agent (meaning "no, they are no longer idle").
 
           for_pool = seem (pool,remove_before = false) =>
-            call = yield agent.topmost pool
+            calls = yield pool.calls()
+            call = yield agent.policy calls
             if call?
 
 For egress calls, ensure the same call is not attempted twice to two different agents (at the same time) or to the same agent (one time after the other).

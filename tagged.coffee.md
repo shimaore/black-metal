@@ -16,6 +16,10 @@ The policy is:
 
         debug 'Checking call for agent', call.key, @key
 
+        unless @has 'multi'
+          presenting = yield call.presenting()
+          return false if presenting
+
         call_tags = new Set yield call.tags()
 
 - domains must match
