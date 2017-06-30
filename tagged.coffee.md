@@ -18,7 +18,7 @@ The policy is:
 
         presenting = yield call.presenting()
 
-        if presenting and not @has_tag 'multi'
+        if presenting and not yield @has_tag 'multi'
           return false
 
         call.waiting = if presenting then 0 else 1
