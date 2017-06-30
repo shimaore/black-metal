@@ -157,7 +157,7 @@ Ingress (or otherwise existing) call
           if yield @exists()
             return this
           else
-            return null
+            return 'missing'
 
 Egress call
 
@@ -170,7 +170,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
         data = yield @get_reference_data reference
 
         unless data?
-          return null
+          return 'missing'
 
         xref = "xref:#{reference}"
         params =
@@ -196,7 +196,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
           yield @set_reference reference
           this
         else
-          null
+          'failed'
 
       bridge: seem (agent_call) ->
         debug 'Call.bridge', @id, agent_call.id
@@ -310,7 +310,7 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
           exists = yield @originate_external()
 
-          return null if not exists
+          return exists if typeof exists is 'string'
 
 We need to send the call to the agent (using either mode A or mode B).
 
@@ -320,11 +320,11 @@ We need to send the call to the agent (using either mode A or mode B).
             debug 'Call.present: Successfully bridged', @id, agent_call.key
             yield @unbridge_except agent_call.key
             yield @add_tag 'bridged'
-            return true
+            return 'answer'
 
           debug 'Call.present: Failed to bridge', @id, agent_call?.key
           if not agent_call?
-            response = false
+            response = 'missed'
 
         catch error
           debug "Call.present: #{error.stack ? error}"

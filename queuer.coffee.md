@@ -162,6 +162,9 @@ Either way, this is idempotent.
                   return false # in-call
                 when 'missed'
                   return false # away
+                when 'missing'
+                  yield pool.remove call
+
             null
 
 The `agent_pool` contains (at least the topmost) calls matching for this agent.
