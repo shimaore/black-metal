@@ -29,15 +29,14 @@
           debug 'Pool.has', @name, call.key
           super call.key
 
-        not_presenting: seem ->
-          debug 'Pool.not_presenting', @key
+        calls: seem ->
+          debug 'Pool.all', @key
           result = []
-          yield @forEach seem (key) =>
+          yield @forEach seem (key) ->
             call = new Call {key}
             yield call.load()
-            if not yield call.presenting()
-              result.push call
-          debug 'Pool.not_presenting', @key, result
+            result.push call
+          debug 'Pool.all', @key, result
           result
 
       class EgressAgents extends RedisClient
