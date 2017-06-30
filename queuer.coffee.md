@@ -196,8 +196,7 @@ Note: it is OK for agent.filter_and_sort to throw away calls that will not make 
         hungup_ingress_call: seem (call) ->
           debug 'Queuer.hungup_ingress_call'
           yield call.load()
-          yield call.unbridge()
-          # FIXME: stop ringing if we are presenting the call
+          yield call.unbridge_except()
           yield @ingress_pool.remove call
 
 An egress pool is a set of dynamically constructed call instances (for example using an iterator). The call instance is created using data found e.g. in a database, the (egress) call is placed in the pool, and the idle agents are re-evaluated.

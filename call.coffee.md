@@ -129,7 +129,11 @@ Agent in on-hook mode
 
 Originates towards (presumably) OpenSIPS.
 
-        yield caller.set 'matched_call', id
+Add our call to the matched set on the caller's side so that we can stop the call(s) if the caller hangs up
+or (in case of multiple presentations) when someone picks the call up.
+
+        yield caller.add id
+
         if yield @api "originate {#{params}}sofia/#{@profile}/#{@destination} &park"
           @destination = null
           @id = id
@@ -201,11 +205,14 @@ This is similar to what we do with `place-call` but we're calling the other way 
         yield sleep 400
         yield @api "uuid_bridge #{@id} #{agent_call.id}"
 
-      unbridge: seem ->
-        debug 'Call.unbridge', @id
-        id = yield @get 'matched_call'
-        if id?
-          yield @api "uuid_kill #{id}"
+Remove all the matched calls, except maybe one.
+
+      unbridge_except: seem (except = null) ->
+        debug 'Call.unbridge_except', @id, except
+        yield @forEach (id) =>
+          return if id is except
+          @api("uuid_kill #{id}").catch -> yes
+        yield @clear()
 
       park: seem ->
         debug 'Call.park', @id
