@@ -207,6 +207,12 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             agent_call = yield agent.originate call
 
+            notification_data =
+              agent: agent.key
+              call: call.key
+              destination: call.destination
+              remote_number: yield call.get_remote_number()
+
             unless agent_call?
               yield agent.incr_missed()
               yield agent.transition 'missed', notification_data
