@@ -287,48 +287,4 @@ with the gentones notifications.
       get_music: ->
         @get 'music'
 
-Originate-and-Bridge (aka Present)
-----------------------------------
-
-Present the current call to the given agent by first rinding the agent,
-and then bridging this call with the agent if the agent answered.
-
-Returns:
-- true if success
-- false if failure due to the agent (no response)
-- null if failure due to other element.
-
-      originate_and_bridge: seem (agent) ->
-        debug 'Call.present', @key, agent.key
-
-        response = null
-
-        try
-
-For a dial-out (egress) call we first need to attempt to contact the destination.
-For a dial-in (ingress) call we already have the proper call UUID.
-
-          exists = yield @originate_external()
-
-          return exists if typeof exists is 'string'
-
-We need to send the call to the agent (using either mode A or mode B).
-
-          agent_call = yield agent.originate this
-
-          if @id? and agent_call? and yield @bridge agent_call
-            debug 'Call.present: Successfully bridged', @id, agent_call.key
-            yield @unbridge_except agent_call.key
-            yield @add_tag 'bridged'
-            return 'answer'
-
-          debug 'Call.present: Failed to bridge', @id, agent_call?.key
-          if not agent_call?
-            response = 'missed'
-
-        catch error
-          debug "Call.present: #{error.stack ? error}"
-
-        response
-
     module.exports = Call

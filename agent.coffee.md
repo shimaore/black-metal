@@ -236,34 +236,6 @@ Notify start of wrapup time to an agent
         if agent_call?
           yield agent_call.wrapup()
 
-Present a call to this agent
-----------------------------
-
-      present: seem (call,notification_data) ->
-        debug 'Agent.present', @key, call.key
-        notification_data ?=
-          key: call.key
-          destination: call.destination
-        if yield @transition 'present', notification_data
-          yield sleep 2*1000
-          switch yield call.originate_and_bridge this
-            when 'answer'
-              debug 'Agent.present: answer', @key, call.key
-              yield @set_remote_call call
-              yield @reset_missed()
-              return 'answer'
-            when 'missed' # failure, agent-side
-              debug 'Agent.present: missed', @key, call.key
-              yield @incr_missed()
-              return 'missed'
-            when 'missing' # call does not exist
-              debug 'Agent.present: missing', @key, call.key
-              return 'missing'
-            else # failure, other
-              debug 'Agent.present: failed', @key, call.key
-              return 'failed'
-        return
-
       disconnect_remote: seem ->
         debug 'Agent.disconnect_remote'
         current_call = yield @get_remote_call()
