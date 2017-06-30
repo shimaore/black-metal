@@ -216,14 +216,14 @@ We need to send the call to the agent (using either onhook or offhook mode).
             unless agent_call?
               yield agent.incr_missed()
               yield agent.transition 'missed', notification_data
-              return null
+              return false
 
             debug 'Queuer.on_agent_idle send_to_agent: bridge', agent.key, call.key
 
             unless yield call.bridge agent_call
               yield agent_call.hangup()
               yield agent.transition 'failed', notification_data
-              return null
+              return false
 
             debug 'Queuer.on_agent_idle send_to_agent: Successfully bridged', agent.key, call.key, call.id, agent_call.key
 
@@ -275,6 +275,7 @@ Ingress pool
               null
 
             debug "Queuer.on_agent_idle: ingress pool, agent answered=#{answered}", agent.key
+            return true if answered is null
             return false if answered
 
           else
@@ -297,6 +298,7 @@ Egress pool
               null
 
             debug "Queuer.on_agent_idle: egress pool, agent answered=#{answered}", agent.key
+            return true if answered is null
             return false if answered
 
           else

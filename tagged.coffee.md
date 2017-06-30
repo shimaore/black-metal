@@ -19,6 +19,7 @@ The policy is:
         presenting = yield call.presenting()
 
         if presenting and not yield @has_tag 'multi'
+          debug 'Call is already being presented', call.key, @key
           return false
 
         call.waiting = if presenting then 0 else 1
