@@ -3,9 +3,13 @@
     seem = require 'seem'
     debug = (require 'tangible') 'black-metal:test:agent'
 
+    RedisInterface = require 'normal-key/interface'
+
     describe 'The Agent', ->
       redis =
         _: {}
+        expireAsync: ->
+          Promise.resolve null
         hsetAsync: (key,field,value) ->
           debug 'hset', key, field, value, typeof value
           redis._[key] ?= {}
@@ -90,6 +94,7 @@
           redis._[key] = new Set
           Promise.resolve 1
 
+      redis_interface = new RedisInterface [redis]
 
       policy = (calls) ->
         debug 'policy_for…'
@@ -120,7 +125,7 @@
       profile = 'booh!'
 
       class TestCall extends require '../call'
-        redis: redis
+        redis: redis_interface
         api: api
         profile: profile
         get_reference_data: (reference) -> params: {}
@@ -128,27 +133,27 @@
         update_call_data: (call_data) ->
 
       class TestAgent extends require '../agent'
-        redis: redis
+        redis: redis_interface
         policy: policy
         create_egress_call: create_egress_call
         new_call: (data) -> new TestCall data
 
-      Queuer = (require '../queuer') {redis, Agent: TestAgent, Call: TestCall}
+      Queuer = (require '../queuer') redis: redis_interface, Agent: TestAgent, Call: TestCall
 
       it 'should increment external calls', seem ->
         queuer = new Queuer()
         agent = new TestAgent queuer, 'lalala'
         yield agent.add_call 1234
         yield agent.del_call 1234
-        redis._['agent-set-lalala'].should.have.property 'size', 0
+        redis._['agent-lalala-S'].should.have.property 'size', 0
 
       it 'should transition on login', seem ->
         queuer = new Queuer()
         agent = new TestAgent queuer, 'lalala'
         ok = yield agent.transition 'login'
         ok.should.be.true
-        redis._['agent-property-lalala'].should.have.property 'state', 'idle'
-        redis._['pool-zset-egress-agents'].should.have
+        redis._['agent-lalala-P'].should.have.property 'state', 'idle'
+        redis._['pool-egress-agents-Z'].should.have
           .property 'lalala'
           .within 0, 1
 
@@ -158,7 +163,7 @@
         agent = new TestAgent queuer, 'lululu'
         ok = yield agent.transition 'login'
         ok.should.be.true
-        redis._['agent-property-lululu'].should.have.property 'state', 'presenting'
+        redis._['agent-lululu-P'].should.have.property 'state', 'presenting'
 
       it 'should transition on ingress', seem ->
         @timeout 4000
@@ -169,13 +174,13 @@
         ok.should.be.true
         ok = yield laloli.transition 'login'
         ok.should.be.true
-        redis._['agent-property-lalilo'].should.have.property 'state', 'idle'
-        redis._['agent-property-laloli'].should.have.property 'state', 'idle'
+        redis._['agent-lalilo-P'].should.have.property 'state', 'idle'
+        redis._['agent-laloli-P'].should.have.property 'state', 'idle'
         call = new TestCall id:'1234'
         yield call.save()
         yield call.set_reference 'hello-again'
         yield queuer.queue_ingress_call
         in_call = 0
-        in_call += 1 if redis._['agent-property-lalilo'].state is 'in_call'
-        in_call += 1 if redis._['agent-property-laloli'].state is 'idle'
+        in_call += 1 if redis._['agent-lalilo-P'].state is 'in_call'
+        in_call += 1 if redis._['agent-laloli-P'].state is 'idle'
         chai.expect(in_call).to.equal 1

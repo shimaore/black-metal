@@ -23,7 +23,7 @@
   "dependencies": {
     "bluebird": "^3.5.0",
     "esl": "^5.4.0",
-    "redis": "^2.7.1",
+    "normal-key": "^1.0.6",
     "seem": "^2.0.0",
     "tangible": "^1.7.0",
     "uuid": "^3.1.0"

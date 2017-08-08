@@ -1,6 +1,6 @@
     @name = 'black-metal:queuer'
     seem = require 'seem'
-    RedisClient = require './redis'
+    RedisClient = require 'normal-key/client'
 
     uuidV4 = require 'uuid/v4'
     debug = (require 'tangible') @name

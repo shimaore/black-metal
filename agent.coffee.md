@@ -4,7 +4,7 @@ Agent
     @name = 'black-metal:agent'
     debug = (require 'tangible') @name
     seem = require 'seem'
-    RedisClient = require './redis'
+    RedisClient = require 'normal-key/client'
 
     seconds = 1000
     minutes = 60*seconds

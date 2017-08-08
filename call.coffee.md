@@ -4,7 +4,7 @@ class Call: a call from or towards a customer
     debug = (require 'tangible') @name
     seem = require 'seem'
     uuidV4 = require 'uuid/v4'
-    RedisClient = require './redis'
+    RedisClient = require 'normal-key/client'
 
     make_id = ->
       now = new Date() .toJSON()
