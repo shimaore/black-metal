@@ -257,8 +257,8 @@ Tools
       incr_missed: ->
         @incr 'missed'
 
-      get_missed: ->
-        @get 'missed'
+      get_missed: seem ->
+        (yield @get 'missed') ? 0
 
       get_call: seem (name) ->
         key = yield @get name
