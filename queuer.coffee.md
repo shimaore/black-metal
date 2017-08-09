@@ -2,12 +2,7 @@
     seem = require 'seem'
     RedisClient = require 'normal-key/client'
 
-    uuidV4 = require 'uuid/v4'
     debug = (require 'tangible') @name
-
-    make_id = ->
-      now = new Date() .toJSON()
-      now[0...8] + uuidV4()
 
     sleep = (timeout) ->
       new Promise (resolve) ->

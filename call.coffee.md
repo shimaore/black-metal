@@ -3,12 +3,11 @@ class Call: a call from or towards a customer
     @name = 'black-metal:call'
     debug = (require 'tangible') @name
     seem = require 'seem'
-    uuidV4 = require 'uuid/v4'
+    Solid = require 'solid-gun'
     RedisClient = require 'normal-key/client'
 
     make_id = ->
-      now = new Date() .toJSON()
-      now[0...8] + uuidV4()
+      Solid.time() + Solid.uniqueness()
 
     make_params = (data) ->
       ("#{k}=#{v}" for own k,v of data).join ','
