@@ -15,10 +15,10 @@
   "author": "Stéphane Alnet <stephane@shimaore.net> (https://stephane.shimaore.net/)",
   "license": "Unlicense",
   "devDependencies": {
-    "chai": "^4.0.2",
+    "chai": "^4.1.1",
     "coffee-coverage": "^2.0.1",
-    "coffee-script": "^1.12.6",
-    "mocha": "^3.4.2"
+    "coffee-script": "^1.12.7",
+    "mocha": "^3.5.0"
   },
   "dependencies": {
     "bluebird": "^3.5.0",
