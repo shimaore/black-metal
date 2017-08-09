@@ -72,7 +72,7 @@ Monitor other calls for this agent, keeping state.
 
 Handle transitions
 
-      transition: seem (event, notification_data = null) ->
+      transition: seem (event, notification_data = {}) ->
         debug 'Agent.transition', event
         old_state = yield @get_state()
         old_state ?= initial_state
@@ -100,7 +100,7 @@ Handle transitions
         debug 'Agent.transition', event, old_state, new_state
         if new_state?
           yield @set_state new_state
-          yield @notify? new_state, notification_data
+          yield @notify? new_state, notification_data, event
           yield @queuer.on_agent this, new_state
           if 'timeout' of agent_transition[new_state]
             @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration
