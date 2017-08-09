@@ -77,8 +77,6 @@ The `reference` is set either:
           debug.dev 'Call.originate_internal: caller has no reference', caller.key, @key, @destination
           return null
 
-        data = yield caller.get_reference_data reference
-
         source = yield caller.get_remote_number()
         source ?= 'caller'
 
@@ -100,15 +98,15 @@ Agent in on-hook mode
         alert_info = yield caller.get_alert_info()
 
         endpoint = @destination
-        data.endpoint = endpoint
-        data._in ?= []
-        data._in.push endpoint unless endpoint in data._in
-        data.state = 'originate-internal'
-        data = yield @update_reference_data data
+
+        xref = "xref:#{reference}"
+
+        my_reference = new @Reference reference
+        yield my_reference.set_endpoint endpoint
+        yield my_reference.add_in endpoint
 
         music = yield caller.get_music()
 
-        xref = "xref:#{reference}"
         params =
           origination_uuid: id
           origination_caller_id_number: source
@@ -167,10 +165,10 @@ This is similar to what we do with `place-call` but we're calling the other way 
 
         reference = @destination
 
-        data = yield @get_reference_data reference
-
-        unless data?
-          return 'missing'
+        my_reference = new Reference reference
+        destination = yield my_reference.get_destination()
+        domain = yield my_reference.get_domain()
+        source = yield my_reference.get_source()
 
         xref = "xref:#{reference}"
         params =
@@ -183,13 +181,11 @@ This is similar to what we do with `place-call` but we're calling the other way 
           sip_invite_to_params: xref
           sip_invite_contact_params: xref
           sip_invite_from_params: xref
-
-        for own k,v of data.params
-          params[k] ?= v
+          origination_caller_id_number: source
 
         params = make_params params
 
-        if yield @api "originate {#{params}}sofia/#{@profile}/#{data.destination}@#{data.domain} &park"
+        if yield @api "originate {#{params}}sofia/#{@profile}/#{destination}@#{domain} &park"
           @destination = null
           @id = id
           yield @save()
