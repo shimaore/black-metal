@@ -57,6 +57,8 @@ Create a new profile
         else
           null
 
+      report: ->
+
 Originate a call towards an agent
 ---------------------------------
 
@@ -84,9 +86,6 @@ Agent in off-hook mode
 
         if @id?
           if yield @exists()
-
-FIXME how do we (re)bind the agent's off-hook call with this incoming call?
-
             return this
           else
             return null

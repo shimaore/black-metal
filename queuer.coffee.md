@@ -231,6 +231,8 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             yield pool.remove(call).catch -> yes
 
+            call.report state:'connected-to-agent', agent:agent.key
+
             monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
             monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
               debug 'Queuer.on_agent_idle send_to_agent: caller hung up', agent.key
@@ -306,9 +308,12 @@ No call
             switch body?.variable_hangup_cause
               when 'ATTENDED_TRANSFER'
                 debug 'Queuer.queue_ingress_call: attended_transfer'
+                call.report state:'transferred-queuer', event:'attended-transfer'
               when 'BLIND_TRANSFER'
                 debug 'Queuer.queue_ingress_call: blind_transfer'
+                call.report state:'transferred-queuer', event:'blind-transfer'
               else
+                call.report state:'hungup-queuer'
                 yield @hungup_ingress_call call
             monitor = null
           yield @reevaluate_idle_agents()
