@@ -196,7 +196,7 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
 We need to send the call to the agent (using either onhook or offhook mode).
 
-          send_to_agent = seem (agent,call) ->
+          send_to_agent = seem (pool,agent,call) ->
 
             debug 'Queuer.on_agent_idle send_to_agent: originate', agent.key, call.key
 
@@ -258,7 +258,7 @@ Ingress pool
 
             debug 'Queuer.on_agent_idle: ingress pool, got client call', agent.key
 
-            answered = yield send_to_agent(agent, client_call).catch (error) ->
+            answered = yield send_to_agent(@ingress_pool, agent, client_call).catch (error) ->
               debug.ops 'Queuer.on_agent_idle: ingress pool, error in send_to_agent', error.stack ? error.toString()
               null
 
@@ -281,7 +281,7 @@ Egress pool
 
             debug 'Queuer.on_agent_idle: egress pool, got client call', agent.key
 
-            answered = yield send_to_agent(agent, client_call).catch(error) ->
+            answered = yield send_to_agent(@egress_pool, agent, client_call).catch(error) ->
               debug.ops 'Queuer.on_agent_idle: egress pool, error in send_to_agent', error.stack ? error.toString()
               null
 
