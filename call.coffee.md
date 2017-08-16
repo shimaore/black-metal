@@ -113,7 +113,7 @@ Agent in on-hook mode
           park_after_bridge: true
           progress_timeout: 18
           originate_timeout: 22
-          'sip_h_X-CCNQ3-Endpoint': @destination # Centrex-only
+          'sip_h_X-En': @destination # Centrex-only
           alert_info: alert_info
           sip_invite_params: xref
           sip_invite_to_params: xref
