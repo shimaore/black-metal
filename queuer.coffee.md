@@ -196,6 +196,13 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             debug 'Queuer.on_agent_idle send_to_agent: originate', agent.key, call.key
 
+            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
+            monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+              debug 'Queuer.on_agent_idle send_to_agent: caller hung up', agent.key
+              monitor.end()
+              monitor = null
+              yield agent.transition 'hangup', notification_data
+
             agent_call = yield agent.originate call
 
             notification_data = {call}
@@ -224,13 +231,6 @@ We need to send the call to the agent (using either onhook or offhook mode).
             yield pool.remove(call).catch -> yes
 
             call.report state:'connected-to-agent', agent:agent.key
-
-            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
-            monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
-              debug 'Queuer.on_agent_idle send_to_agent: caller hung up', agent.key
-              monitor.end()
-              monitor = null
-              yield agent.transition 'hangup', notification_data
 
             debug 'Queuer.on_agent_idle send_to_agent: transition agent', agent.key, call.key, call.id, agent_call.key
             yield agent.transition 'answer', notification_data
