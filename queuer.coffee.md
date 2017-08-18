@@ -165,9 +165,20 @@ Transition the agent.
               yield agent.transition 'failed', notification_data
               return null
 
-            debug 'Queuer.on_agent_idle build_call: transitioned, waiting for 2s', agent.key, call.key
+            debug 'Queuer.on_agent_idle build_call: transitioned, waiting for 1s', agent.key, call.key
 
-            yield sleep 2*1000
+Notify the agent of the caller's hangup.
+
+            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
+            monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+              debug 'Queuer.on_agent_idle send_to_agent: caller hung up', agent.key
+              monitor.end()
+              monitor = null
+              yield pool.remove call
+              yield agent.transition 'hangup', notification_data
+              return
+
+            yield sleep 1*1000
 
 For a dial-out (egress) call we first need to attempt to contact the destination.
 For a dial-in (ingress) call we already have the proper call UUID.
@@ -195,13 +206,6 @@ We need to send the call to the agent (using either onhook or offhook mode).
           send_to_agent = seem (pool,call) ->
 
             debug 'Queuer.on_agent_idle send_to_agent: originate', agent.key, call.key
-
-            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
-            monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
-              debug 'Queuer.on_agent_idle send_to_agent: caller hung up', agent.key
-              monitor.end()
-              monitor = null
-              yield agent.transition 'hangup', notification_data
 
             agent_call = yield agent.originate call
 
