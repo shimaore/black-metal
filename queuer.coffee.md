@@ -167,12 +167,14 @@ Transition the agent.
 
             debug 'Queuer.on_agent_idle build_call: transitioned', agent.key, call.key
 
-            clear_call = seem ->
+            clear_call = ->
               debug 'Queuer.on_agent_idle build_call: clear_call', agent.key
-              monitor.end()
+              monitor?.end()
               monitor = null
-              yield pool.remove call
-              yield agent.transition 'hangup', notification_data
+              pool.remove call
+                .catch debug.catch
+              agent.transition 'hangup', notification_data
+                .catch debug.catch
               null
 
 Notify the agent of the caller's hangup.
