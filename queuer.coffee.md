@@ -165,20 +165,29 @@ Transition the agent.
               yield agent.transition 'failed', notification_data
               return null
 
-            debug 'Queuer.on_agent_idle build_call: transitioned, waiting for 1s', agent.key, call.key
+            debug 'Queuer.on_agent_idle build_call: transitioned', agent.key, call.key
 
-Notify the agent of the caller's hangup.
-
-            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
-            monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem =>
-              debug 'Queuer.on_agent_idle send_to_agent: caller hung up', agent.key
+            clear_call = seem ->
+              debug 'Queuer.on_agent_idle build_call: clear_call', agent.key
               monitor.end()
               monitor = null
               yield pool.remove call
               yield agent.transition 'hangup', notification_data
-              return
+              null
 
-            yield sleep 1*1000
+Notify the agent of the caller's hangup.
+
+            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
+            return null unless monitor?
+
+            monitor.once 'CHANNEL_HANGUP_COMPLETE', =>
+              debug 'Queuer.on_agent_idle build_call: caller hung up', agent.key
+              clear_call()
+
+Wait a little bit (this is meant to give a popup some time to settle).
+
+            debug 'Queuer.on_agent_idle build_call: waiting for 1.5s before originate_external', agent.key, call.key
+            yield sleep 1500
 
 For a dial-out (egress) call we first need to attempt to contact the destination.
 For a dial-in (ingress) call we already have the proper call UUID.
@@ -189,21 +198,21 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
             switch exists
               when 'missing'
-                yield pool.remove call
+                yield clear_call()
                 return null
               when 'failed' # only for outbound calls
-                yield pool.remove call
+                yield clear_call()
                 return null
 
             if not call.id?
-              yield pool.remove call
+              yield clear_call()
               return null
 
-            return call
+            return {call,monitor}
 
 We need to send the call to the agent (using either onhook or offhook mode).
 
-          send_to_agent = seem (pool,call) ->
+          send_to_agent = seem (pool,{call,monitor}) ->
 
             debug 'Queuer.on_agent_idle send_to_agent: originate', agent.key, call.key
 
@@ -212,6 +221,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
             notification_data = {call}
 
             unless agent_call?
+              monitor?.end()
               yield agent.incr_missed()
               yield agent.transition 'missed', notification_data
               return false
@@ -219,6 +229,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
             debug 'Queuer.on_agent_idle send_to_agent: bridge', agent.key, call.key
 
             unless yield call.bridge agent_call
+              monitor?.end()
               yield call.remove(agent_call).catch -> yes
               yield agent_call.hangup()
               yield agent.transition 'failed', notification_data
@@ -246,16 +257,17 @@ Ingress pool
 
           debug 'Queuer.on_agent_idle: ingress pool', agent.key
 
-          client_call = yield build_call(@ingress_pool).catch (error) ->
+          response = yield build_call(@ingress_pool).catch (error) ->
             debug.ops 'Queuer.on_agent_idle: ingress pool, error in build_call', error.stack ? error.toString()
             null
 
-          if client_call?
+          if response?
 
             debug 'Queuer.on_agent_idle: ingress pool, got client call', agent.key
 
-            answered = yield send_to_agent(@ingress_pool, client_call).catch (error) ->
+            answered = yield send_to_agent(@ingress_pool, response).catch (error) ->
               debug.ops 'Queuer.on_agent_idle: ingress pool, error in send_to_agent', error.stack ? error.toString()
+              response?.monitor?.end()
               null
 
             debug "Queuer.on_agent_idle: ingress pool, agent answered=#{answered}", agent.key
@@ -269,16 +281,17 @@ Egress pool
 
           debug 'Queuer.on_agent_idle: egress pool', agent.key
 
-          client_call = yield build_call(@egress_pool, true).catch (error) ->
+          response = yield build_call(@egress_pool, true).catch (error) ->
             debug.ops 'Queuer.on_agent_idle: egress pool, error in build_call', error.stack ? error.toString()
             null
 
-          if client_call?
+          if response?
 
             debug 'Queuer.on_agent_idle: egress pool, got client call', agent.key
 
-            answered = yield send_to_agent(@egress_pool, client_call).catch(error) ->
+            answered = yield send_to_agent(@egress_pool, response).catch(error) ->
               debug.ops 'Queuer.on_agent_idle: egress pool, error in send_to_agent', error.stack ? error.toString()
+              response?.monitor?.end()
               null
 
             debug "Queuer.on_agent_idle: egress pool, agent answered=#{answered}", agent.key
@@ -300,7 +313,7 @@ No call
           monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
           monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({body}) =>
             debug 'Queuer.queue_ingress_call: channel hangup complete', call.key
-            monitor.end()
+            monitor?.end()
             switch body?.variable_hangup_cause
               when 'ATTENDED_TRANSFER'
                 debug 'Queuer.queue_ingress_call: attended_transfer'

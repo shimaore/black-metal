@@ -128,7 +128,7 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
 
         monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({body}) =>
           debug 'Agent.__monitor: channel hangup complete', @key
-          monitor.end()
+          monitor?.end()
           yield @set_onhook_call null
           switch body?.variable_transfer_disposition
             when 'recv_replace'

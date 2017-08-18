@@ -237,6 +237,7 @@ with the gentones notifications.
 
       monitor: seem (events...) ->
         debug 'Call.monitor', @id
+        return null unless @id?
         client = yield @api "myevents #{@id} json"
         yield client.event_json events...
         client
