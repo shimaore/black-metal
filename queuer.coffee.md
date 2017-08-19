@@ -177,20 +177,6 @@ Transition the agent.
                 .catch debug.catch
               null
 
-Notify the agent of the caller's hangup.
-
-            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
-            return null unless monitor?
-
-            monitor.once 'CHANNEL_HANGUP_COMPLETE', =>
-              debug 'Queuer.on_agent_idle build_call: caller hung up', agent.key
-              clear_call()
-
-Wait a little bit (this is meant to give a popup some time to settle).
-
-            debug 'Queuer.on_agent_idle build_call: waiting for 1.5s before originate_external', agent.key, call.key
-            yield sleep 1500
-
 For a dial-out (egress) call we first need to attempt to contact the destination.
 For a dial-in (ingress) call we already have the proper call UUID.
 
@@ -209,6 +195,20 @@ For a dial-in (ingress) call we already have the proper call UUID.
             if not call.id?
               yield clear_call()
               return null
+
+Notify the agent of the caller's hangup.
+
+            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
+            return null unless monitor?
+
+            monitor.once 'CHANNEL_HANGUP_COMPLETE', =>
+              debug 'Queuer.on_agent_idle build_call: caller hung up', agent.key
+              clear_call()
+
+Wait a little bit (this is meant to give a popup some time to settle).
+
+            debug 'Queuer.on_agent_idle build_call: waiting for 1.5s before originate_external', agent.key, call.key
+            yield sleep 1500
 
             return {call,monitor}
 
