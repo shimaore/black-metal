@@ -242,7 +242,6 @@ We need to send the call to the agent (using either onhook or offhook mode).
             yield call.add_tag 'bridged'
             yield call.unbridge_except agent_call.key
 
-            yield agent.set_remote_call call
             yield agent.reset_missed()
 
             yield pool.remove(call).catch -> yes

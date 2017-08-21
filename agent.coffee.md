@@ -188,6 +188,8 @@ Originate a call towards an agent
       originate: seem (caller) ->
         debug 'Agent.originate', @key
 
+        yield @set_remote_call caller
+
 For off-hook the call already exists.
 
         offhook_call = yield @get_offhook_call()
@@ -200,11 +202,13 @@ For on-hook we need to call the agent.
         yield agent_call.save()
         agent_call = yield agent_call.originate_internal caller
         unless agent_call?
+          yield @set_remote_call null
           return null
 
         unless @__monitor agent_call
           yield caller.remove(agent_call).catch -> yes
           agent_call.hangup().catch -> yes
+          yield @set_remote_call null
           return null
 
         yield @set_onhook_call agent_call
