@@ -173,7 +173,7 @@ Transition the agent.
               monitor = null
               pool.remove call
                 .catch debug.catch
-              agent.transition 'hangup', notification_data
+              agent.remote_hungup call
                 .catch debug.catch
               null
 

@@ -249,6 +249,12 @@ Notify start of wrapup time to an agent
           yield @set_remote_call null
           yield current_call.hangup()
 
+      remote_hungup: seem (call) ->
+        current_call = yield @get_remote_call()
+        if current_call.key is call.key
+          yield @set_remote_call null
+          yield @transition 'hangup', {call}
+
 Tools
 -----
 
