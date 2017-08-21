@@ -130,20 +130,22 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
           debug 'Agent.__monitor: channel hangup complete', @key
           monitor?.end()
           yield @set_onhook_call null
+          call = yield @get_remote_call().catch -> null
           switch body?.variable_transfer_disposition
             when 'recv_replace'
-              yield @transition 'agent_transfer'
+              yield @transition 'agent_transfer', {call}
             else
-              yield @transition 'agent_hangup'
+              yield @transition 'agent_hangup', {call}
           monitor = null
 
         monitor?.on 'DTMF', seem ({body}) =>
           debug 'Agent.__monitor: DTMF', @key
+          call = yield @get_remote_call().catch -> null
           switch body['DTMF-Digit']
             when '*', '7', '4', '1'
-              yield @transition 'force_hangup'
+              yield @transition 'force_hangup', {call}
             when '#', '9', '6', '3'
-              yield @transition 'complete'
+              yield @transition 'complete', {call}
           return
 
         monitor
