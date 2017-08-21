@@ -246,6 +246,7 @@ Notify start of wrapup time to an agent
         debug 'Agent.disconnect_remote'
         current_call = yield @get_remote_call()
         if current_call?
+          yield @set_remote_call null
           yield current_call.hangup()
 
 Tools
