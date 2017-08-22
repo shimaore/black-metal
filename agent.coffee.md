@@ -5,7 +5,9 @@ Agent
     debug = (require 'tangible') @name
     seem = require 'seem'
     heal = (p) -> p.catch debug.catch
-    hand = (f) -> F = seem f (args...) -> heal F args...
+    hand = (f) ->
+      F = seem f
+      (args...) -> heal F args...
     RedisClient = require 'normal-key/client'
 
     seconds = 1000
