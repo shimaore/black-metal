@@ -37,16 +37,22 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
           return Promise.resolve
             once: ->
             on: ->
+            event_json: ->
         if cmd.match /^uuid_exists/
           return Promise.resolve 'true'
         Promise.resolve true
 
       profile = 'booh!'
+      class Reference
+        get_destination: -> Promise.resolve 'hello'
+        get_domain: -> Promise.resolve 'handy-bear'
+        get_source: -> Promise.resolve 'famous-candy'
 
       class TestCall extends require '../call'
         redis: redis_interface
         api: api
         profile: profile
+        Reference: Reference
 
       class TestAgent extends require '../agent'
         redis: redis_interface
