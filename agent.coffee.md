@@ -100,7 +100,7 @@ Handle transitions
         debug 'Agent.transition', event, old_state, new_state
         if new_state?
           yield @set_state new_state
-          yield @notify? new_state, notification_data, event
+          yield @notify? {old_state,new_state,event}, notification_data
           yield @queuer.on_agent this, new_state
           if 'timeout' of agent_transition[new_state]
             @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration
