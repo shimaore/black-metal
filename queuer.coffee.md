@@ -1,5 +1,7 @@
     @name = 'black-metal:queuer'
     seem = require 'seem'
+    heal = (p) -> p.catch debug.catch
+    hand = (f) -> F = seem f (args...) -> heal F args...
     RedisClient = require 'normal-key/client'
 
     debug = (require 'tangible') @name
@@ -312,7 +314,7 @@ No call
           debug 'Queuer.queue_ingress_call'
           yield @ingress_pool.add call
           monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
-          monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({body}) =>
+          monitor?.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
             debug 'Queuer.queue_ingress_call: channel hangup complete', call.key
             monitor?.end()
             switch body?.variable_hangup_cause

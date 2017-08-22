@@ -4,6 +4,8 @@ Agent
     @name = 'black-metal:agent'
     debug = (require 'tangible') @name
     seem = require 'seem'
+    heal = (p) -> p.catch debug.catch
+    hand = (f) -> F = seem f (args...) -> heal F args...
     RedisClient = require 'normal-key/client'
 
     seconds = 1000
@@ -128,7 +130,7 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
 
         monitor = yield agent_call.monitor 'CHANNEL_HANGUP_COMPLETE', 'DTMF'
 
-        monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({body}) =>
+        monitor?.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
           debug 'Agent.__monitor: channel hangup complete', @key
           monitor?.end()
           monitor = null
@@ -141,7 +143,7 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
               yield @transition 'agent_hangup', {call}
           return
 
-        monitor?.on 'DTMF', seem ({body}) =>
+        monitor?.on 'DTMF', hand ({body}) =>
           debug 'Agent.__monitor: DTMF', @key
           call = yield @get_remote_call().catch -> null
           switch body['DTMF-Digit']
