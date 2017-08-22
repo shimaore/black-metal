@@ -380,9 +380,6 @@ An egress pool is a set of dynamically constructed call instances (for example u
           if state is 'wrap_up'
             yield agent.wrapup()
 
-          if state is 'terminate_call'
-            yield agent.disconnect_remote()
-
 If an agent becomes away it is because they missed a call.
 That call still needs to be presented to available agents.
 

@@ -142,7 +142,8 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
             when 'recv_replace'
               yield @transition 'agent_transfer', {call}
             else
-              yield @transition 'agent_hangup', {call}
+              if yield @transition 'agent_hangup', {call}
+                yield @disconnect_remote()
           return
 
         monitor?.on 'DTMF', hand ({body}) =>
@@ -150,7 +151,8 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
           call = yield @get_remote_call().catch -> null
           switch body['DTMF-Digit']
             when '*', '7', '4', '1'
-              yield @transition 'force_hangup', {call}
+              if yield @transition 'force_hangup', {call}
+                yield @disconnect_remote()
             when '#', '9', '6', '3'
               yield @transition 'complete', {call}
           return
