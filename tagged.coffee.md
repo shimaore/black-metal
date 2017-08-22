@@ -19,7 +19,9 @@ The policy is:
         presenting = yield call.presenting()
 
         if presenting
-          unless yield call.has_tag('multi') or yield @has_tag 'multi'
+          call_multi = yield call.has_tag 'multi'
+          agent_multi = yield @has_tag 'multi'
+          unless call_multi or agent_multi
             debug 'Call is already being presented', call.key, @key
             return false
 
