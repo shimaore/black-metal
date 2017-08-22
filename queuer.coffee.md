@@ -203,14 +203,16 @@ Notify the agent of the caller's hangup.
             monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
             return null unless monitor?
 
-            monitor.once 'CHANNEL_HANGUP_COMPLETE', =>
+            monitor.once 'CHANNEL_HANGUP_COMPLETE', hand =>
               debug 'Queuer.on_agent_idle build_call: caller hung up', agent.key
-              clear_call()
+              yield call.load()
+              yield clear_call()
 
 Wait a little bit (this is meant to give a popup some time to settle).
 
             debug 'Queuer.on_agent_idle build_call: waiting for 1.5s before originate_external', agent.key, call.key
             yield sleep 1500
+            yield call.load()
 
             return {call,monitor}
 
@@ -317,6 +319,8 @@ No call
           monitor?.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
             debug 'Queuer.queue_ingress_call: channel hangup complete', call.key
             monitor?.end()
+            monitor = null
+            yield call.load()
             switch body?.variable_hangup_cause
               when 'ATTENDED_TRANSFER'
                 debug 'Queuer.queue_ingress_call: attended_transfer'
@@ -327,7 +331,7 @@ No call
               else
                 call.report state:'hungup-queuer'
                 yield @hungup_ingress_call call
-            monitor = null
+            return
           yield @reevaluate_idle_agents()
 
         hungup_ingress_call: seem (call) ->
