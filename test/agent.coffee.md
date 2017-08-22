@@ -8,6 +8,9 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
     Redis = require 'ioredis'
     RedisInterface = require 'normal-key/interface'
 
+    sleep = (timeout) ->
+      new Promise (resolve) -> setTimeout resolve, timeout
+
     describe 'The Agent', ->
       redis = new Redis()
       redis_interface = new RedisInterface [redis]
@@ -84,6 +87,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         agent = new TestAgent queuer, 'lalala'
         ok = yield agent.transition 'login'
         ok.should.be.true
+        yield sleep 700
         (yield redis.hget 'agent-lalala-P', 'state').should.equal 'idle'
         (yield redis.zrank 'pool-egress-agents-Z', 'lalala').should.be.within 0, 1
 
@@ -93,6 +97,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         agent = new TestAgent queuer, 'lululu'
         ok = yield agent.transition 'login'
         ok.should.be.true
+        yield sleep 700
         (yield redis.hget 'agent-lululu-P', 'state').should.equal 'presenting'
 
       it 'should transition on ingress', seem ->

@@ -394,8 +394,10 @@ Only re-process if an agent is idle.
             if some_call?
               debug.dev 'Error: Agent is idle but still has remote call', agent.key, some_call.key
             yield agent.set_remote_call null
-            if yield @on_agent_idle agent
-              yield @report_idle agent
+            heal do seem =>
+              yield sleep 100+300*Math.random()
+              if yield @on_agent_idle agent
+                yield @report_idle agent
           else
             yield @report_non_idle agent
 
