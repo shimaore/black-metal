@@ -4,7 +4,7 @@
   "description": "Call-center queuer (inbound & outbound) for CCNQ4",
   "main": "index.js",
   "scripts": {
-    "prepublish": "coffee -c -M *.coffee.md",
+    "prepublish": "coffee -c --no-header *.coffee.md",
     "pretest": "npm install && npm run prepublish",
     "test": "mocha"
   },
