@@ -370,6 +370,18 @@ An egress pool is a set of dynamically constructed call instances (for example u
           if call?
             yield @queue_egress_call call
 
+        new_idle_agent: seem (agent) ->
+
+          yield sleep 100
+          some_call = yield agent.get_remote_call()
+          if some_call?
+            debug.dev 'Error: Agent is idle but still has remote call', agent.key, some_call.key
+          yield agent.set_remote_call null
+
+          yield sleep 300*Math.random()
+          if yield @on_agent_idle agent
+            yield @report_idle agent
+
         on_agent: seem (agent,state) ->
           debug 'Queuer.on_agent', agent.key, state
 
@@ -386,19 +398,16 @@ That call still needs to be presented to available agents.
           if state is 'away'
             yield @reevaluate_idle_agents()
 
-Only re-process if an agent is idle.
+If the agent is not idle no further processing is required.
 
-          if state is 'idle'
-            some_call = yield agent.get_remote_call()
-            if some_call?
-              debug.dev 'Error: Agent is idle but still has remote call', agent.key, some_call.key
-            yield agent.set_remote_call null
-            heal do seem =>
-              yield sleep 100+300*Math.random()
-              if yield @on_agent_idle agent
-                yield @report_idle agent
-          else
+          if state isnt 'idle'
             yield @report_non_idle agent
+            return
+
+If the agent is idle, move forward in the background.
+
+          heal @new_idle_agent agent
+          return
 
 Agent behavior
 --------------
