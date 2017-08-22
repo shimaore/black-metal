@@ -164,7 +164,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
 
         reference = @destination
 
-        my_reference = new Reference reference
+        my_reference = new @Reference reference
         destination = yield my_reference.get_destination()
         domain = yield my_reference.get_domain()
         source = yield my_reference.get_source()
