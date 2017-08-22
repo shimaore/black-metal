@@ -390,6 +390,9 @@ That call still needs to be presented to available agents.
 Only re-process if an agent is idle.
 
           if state is 'idle'
+            some_call = yield agent.get_remote_call()
+            if some_call?
+              debug.dev 'Error: Agent is idle but still has remote call', agent.key, some_call.key
             yield agent.set_remote_call null
             if yield @on_agent_idle agent
               yield @report_idle agent
