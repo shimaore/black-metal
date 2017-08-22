@@ -167,15 +167,15 @@ Transition the agent.
 
             debug 'Queuer.on_agent_idle build_call: transitioned', agent.key, call.key
 
-            clear_call = ->
+            clear_call = seem ->
               debug 'Queuer.on_agent_idle build_call: clear_call', agent.key
               monitor?.end()
               monitor = null
-              pool.remove call
+              yield pool.remove call
                 .catch debug.catch
-              agent.remote_hungup call
+              yield agent.remote_hungup call
                 .catch debug.catch
-              null
+              return
 
 For a dial-out (egress) call we first need to attempt to contact the destination.
 For a dial-in (ingress) call we already have the proper call UUID.

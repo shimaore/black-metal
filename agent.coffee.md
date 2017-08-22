@@ -101,9 +101,11 @@ Handle transitions
         if new_state?
           yield @set_state new_state
           yield @notify? {old_state,new_state,event}, notification_data
-          yield @queuer.on_agent this, new_state
           if 'timeout' of agent_transition[new_state]
             @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration
+          @queuer
+            .on_agent this, new_state
+            .catch debug.catch
           return true
         else
           return false
@@ -129,6 +131,7 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
         monitor?.once 'CHANNEL_HANGUP_COMPLETE', seem ({body}) =>
           debug 'Agent.__monitor: channel hangup complete', @key
           monitor?.end()
+          monitor = null
           yield @set_onhook_call null
           call = yield @get_remote_call().catch -> null
           switch body?.variable_transfer_disposition
@@ -136,7 +139,7 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
               yield @transition 'agent_transfer', {call}
             else
               yield @transition 'agent_hangup', {call}
-          monitor = null
+          return
 
         monitor?.on 'DTMF', seem ({body}) =>
           debug 'Agent.__monitor: DTMF', @key
