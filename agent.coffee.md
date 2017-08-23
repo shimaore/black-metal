@@ -107,9 +107,11 @@ Handle transitions
           yield @notify? {old_state,new_state,event}, notification_data
           if 'timeout' of agent_transition[new_state]
             @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration
-          @queuer
-            .on_agent this, new_state
-            .catch debug.catch
+
+Async `on_agent`
+
+          heal @queuer.on_agent this, new_state
+
           return true
         else
           return false
@@ -171,7 +173,7 @@ Attempt to transition to login with the call-id.
 
         agent_call = @new_call id: call_uuid
         unless @__monitor agent_call
-          yield agent_call.hangup().catch -> yes
+          yield heal agent_call.hangup()
           return null
 
         yield agent_call.save()
@@ -215,7 +217,7 @@ For on-hook we need to call the agent.
 
         unless @__monitor agent_call
           yield heal caller.remove agent_call.id
-          agent_call.hangup().catch -> yes
+          heal agent_call.hangup()
           return null
 
         yield @set_onhook_call agent_call

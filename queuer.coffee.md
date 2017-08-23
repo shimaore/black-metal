@@ -252,7 +252,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             yield agent.reset_missed()
 
-            yield pool.remove(call).catch -> yes
+            yield heal pool.remove call
 
             call.report state:'connected-to-agent', agent:agent.key
 
