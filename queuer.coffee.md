@@ -253,8 +253,6 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             yield heal pool.remove call
 
-            call.report state:'connected-to-agent', agent:agent.key
-
             debug 'Queuer.on_agent_idle send_to_agent: transition agent', agent.key, call.key, call.id, agent_call.key
             yield agent.transition 'answer', notification_data
 
