@@ -171,16 +171,6 @@ Transition the agent.
 
             debug 'Queuer.on_agent_idle build_call: transitioned', agent.key, call.key
 
-            clear_call = seem ->
-              debug 'Queuer.on_agent_idle build_call: clear_call', agent.key
-              monitor?.end()
-              monitor = null
-              yield pool.remove call
-                .catch debug.catch
-              yield agent.remote_hungup call
-                .catch debug.catch
-              return
-
 For a dial-out (egress) call we first need to attempt to contact the destination.
 For a dial-in (ingress) call we already have the proper call UUID.
 
@@ -188,27 +178,35 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
             debug 'Queuer.on_agent_idle build_call: originate external returned', agent.key, call.key, call.id, exists
 
-            switch exists
-              when 'missing'
-                yield clear_call()
-                return null
-              when 'failed' # only for outbound calls
-                yield clear_call()
-                return null
+Deal with missing / failed remote calls:
+- `exists` might be `missing` for dial-out or dial-in calls.
+- `exists` might be `failed` for dial-out (egress) calls.
 
-            if not call.id?
-              yield clear_call()
+            if exists is 'missing' or exists is 'failed' or not call.id?
+              yield pool.remove call
+              yield agent.transition 'hangup', {call}
               return null
 
 Notify the agent of the caller's hangup.
 
             monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
-            return null unless monitor?
+            unless monitor?
+              # yield pool.remove call # ?
+              yield agent.transition 'hangup', {call}
+              return null
 
-            monitor.once 'CHANNEL_HANGUP_COMPLETE', hand =>
+Set the remote call so that `remote_hungup` can do its job.
+
+            yield agent.set_remote_call call
+
+            monitor.once 'CHANNEL_HANGUP_COMPLETE', seem =>
               debug 'Queuer.on_agent_idle build_call: caller hung up', agent.key
+              monitor?.end()
+              monitor = null
               yield call.load()
-              yield clear_call()
+              yield heal pool.remove call
+              yield heal agent.remote_hungup call
+              return
 
 Wait a little bit (this is meant to give a popup some time to settle).
 
@@ -230,6 +228,8 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             unless agent_call?
               monitor?.end()
+              monitor = null
+              yield agent.set_remote_call null
               yield agent.incr_missed()
               yield agent.transition 'missed', notification_data
               return false
@@ -238,7 +238,9 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             unless yield call.bridge agent_call
               monitor?.end()
-              yield call.remove(agent_call).catch -> yes
+              monitor = null
+              yield heal call.remove agent_call # undo what was done in `call.originate_internal`
+              yield agent.set_remote_call null
               yield agent_call.hangup()
               yield agent.transition 'failed', notification_data
               return false
@@ -259,6 +261,11 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
 Main body for `on_agent_idle`
 -----------------------------
+
+          some_call = yield agent.get_remote_call()
+          if some_call?
+            debug.dev 'Error: Agent is idle but still has remote call', agent.key, some_call.key
+          yield agent.set_remote_call null
 
 Ingress pool
 
@@ -371,14 +378,7 @@ An egress pool is a set of dynamically constructed call instances (for example u
             yield @queue_egress_call call
 
         new_idle_agent: seem (agent) ->
-
-          yield sleep 100
-          some_call = yield agent.get_remote_call()
-          if some_call?
-            debug.dev 'Error: Agent is idle but still has remote call', agent.key, some_call.key
-          yield agent.set_remote_call null
-
-          yield sleep 300*Math.random()
+          yield sleep 100+300*Math.random()
           if yield @on_agent_idle agent
             yield @report_idle agent
 

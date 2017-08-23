@@ -159,8 +159,8 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
 
         monitor
 
-Start of an off-hook session for the agent
-------------------------------------------
+Start of an off-hook session for the agent (used by huge-play)
+--------------------------------------------------------------
 
       accept_offhook: seem (call_uuid) ->
         debug 'Agent.accept_offhook', call_uuid
@@ -183,8 +183,8 @@ Attempt to transition to login with the call-id.
 
         agent_call
 
-Start of an on-hook session for the agent
------------------------------------------
+Start of an on-hook session for the agent (used by huge-play)
+-------------------------------------------------------------
 
       accept_onhook: seem ->
         debug 'Agent.accept_onhook'
@@ -197,7 +197,7 @@ Originate a call towards an agent
       originate: seem (caller) ->
         debug 'Agent.originate', @key
 
-        yield @set_remote_call caller
+Note: assert(caller.key is (yield @get_remote_call()).key)
 
 For off-hook the call already exists.
 
@@ -211,13 +211,11 @@ For on-hook we need to call the agent.
         yield agent_call.save()
         agent_call = yield agent_call.originate_internal caller
         unless agent_call?
-          yield @set_remote_call null
           return null
 
         unless @__monitor agent_call
           yield caller.remove(agent_call).catch -> yes
           agent_call.hangup().catch -> yes
-          yield @set_remote_call null
           return null
 
         yield @set_onhook_call agent_call
