@@ -214,7 +214,7 @@ For on-hook we need to call the agent.
           return null
 
         unless @__monitor agent_call
-          yield caller.remove(agent_call).catch -> yes
+          yield heal caller.remove agent_call.id
           agent_call.hangup().catch -> yes
           return null
 

@@ -239,7 +239,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
             unless yield call.bridge agent_call
               monitor?.end()
               monitor = null
-              yield heal call.remove agent_call # undo what was done in `call.originate_internal`
+              yield heal call.remove agent_call.id # undo what was done in `call.originate_internal`
               yield agent.set_remote_call null
               yield agent_call.hangup()
               yield agent.transition 'failed', notification_data
