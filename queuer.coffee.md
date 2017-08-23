@@ -166,7 +166,6 @@ Transition the agent.
 
             if not yield agent.transition 'present', notification_data
               debug 'Queuer.on_agent_idle build_call: transition failed', agent.key, call.key
-              yield agent.transition 'failed', notification_data
               return null
 
             debug 'Queuer.on_agent_idle build_call: transitioned', agent.key, call.key
