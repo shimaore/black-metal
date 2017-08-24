@@ -16,13 +16,27 @@ The policy is:
 
         debug 'Checking call for agent', call.key, @key
 
-        presenting = yield call.presenting()
+        call_state = yield call.state()
 
-        if presenting
-          call_multi = yield call.has_tag 'multi'
-          agent_multi = yield @has_tag 'multi'
-          unless call_multi or agent_multi
-            debug 'Call is already being presented', call.key, @key
+        switch call_state
+          when 'pooled'
+            yes
+
+          when 'handled'
+
+Do not make parallel attempts for calls that have no id (outbound calls).
+
+            unless call.id?
+              return false
+
+            broadcast = yield call.broadcast()
+            agent_multi = yield @has_tag 'multi'
+            unless broadcast or agent_multi
+              debug 'Call is already being handled', call.key, @key
+              return false
+
+            call.broadcasting = true
+          else
             return false
 
         call.waiting = if presenting then 0 else 1
@@ -90,7 +104,7 @@ Keep the highest priority value
       result = []
       tags.forEach (tag) ->
         if m = tag.match /^priority:(\d+)$/
-          result.push parseInt m[1]
+          result.push parseInt m[1], 10
       priorities = result.sort (a,b) ->
         switch
           when not a?

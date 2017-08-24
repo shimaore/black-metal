@@ -15,6 +15,7 @@ Agent
     timeout_duration = 12*seconds
 
     class Agent extends RedisClient
+
       constructor: (@queuer,key) ->
         throw new Error 'Agent requires queuer' unless @queuer?
         super 'agent', key
@@ -75,42 +76,47 @@ Monitor other calls for this agent, keeping state.
         null
 
 Handle transitions
+------------------
 
       transition: seem (event, notification_data = {}) ->
-        debug 'Agent.transition', event
+        debug 'Agent.transition', {agent: @key, event}
+
         old_state = yield @get_state()
         old_state ?= initial_state
 
-        debug 'Agent.transition', event, old_state
+        debug 'Agent.transition', {agent: @key, event, old_state}
 
-        unless old_state of agent_transition
+        unless old_state of _transition
           yield @set_state initial_state
           throw new Error "Invalid state, transition from #{old_state} → event #{event}"
 
-        unless event of agent_transition[old_state]
-          debug "Ignoring event #{event} in state #{old_state}"
+        unless event of _transition[old_state]
+          debug "Ignoring event #{event} in state #{old_state}", {agent: @key}
           return false
 
-        new_state = agent_transition[old_state][event]
+        new_state = _transition[old_state][event]
 
         if @__timeout?
           clearTimeout @__timeout
           @__timeout = null
 
-        unless new_state of agent_transition
+        unless new_state of _transition
           yield @set_state initial_state
           throw new Error "Invalid state machine, transition from #{old_state} → event #{event} leads to unknown state #{new_state}"
 
-        debug 'Agent.transition', event, old_state, new_state
+        debug 'Agent.transition', {agent: @key, event, old_state, new_state}
         if new_state?
           yield @set_state new_state
+
+          notification_data.old_state = old_state
+          notification_data.state = new_state
+          notification_data.event = event
+
           yield @notify? {old_state,new_state,event}, notification_data
-          if 'timeout' of agent_transition[new_state]
+          if 'timeout' of _transition[new_state]
             @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration
 
-Async `on_agent`
-
-          heal @queuer.on_agent this, new_state
+          process.nextTick => heal @queuer.on_agent this, notification_data
 
           return true
         else
@@ -280,7 +286,11 @@ Tools
         @incr 'missed'
 
       get_missed: seem ->
-        (yield @get 'missed') ? 0
+        v = yield @get 'missed'
+        if v?
+          parseInt v, 10
+        else
+          0
 
       get_call: seem (name) ->
         key = yield @get name
@@ -327,7 +337,7 @@ Agent Transitions
 
     initial_state = 'logged_out'
 
-    agent_transition =
+    _transition =
 
 ### Event: login
 
@@ -405,6 +415,8 @@ In logged-out state an agent is not considered for calls.
 
 ### State: logged_out_busy
 
+If an agent receives one or multiple calls in logged-out state, it is moved to the logged-out+busy state.
+
       logged_out_busy:
 
         login: 'busy'
@@ -415,14 +427,55 @@ Force log out on second logout.
 
         logout: 'logged_out'
 
-### State: idle
+### State: idle, waiting, pending.
+
+An available agent is `idle`, `waiting`, or `pending`. The three states are equivalent, except from the queuer's point of view.
+
+In `idle` state, the agent is automatically transitioned to `evaluating`.
 
       idle:
 
         start_of_call: 'busy'
         end_of_calls: 'idle'
         logout: 'logged_out'
+        evaluate: 'evaluating'
+        timeout: 'idle'
+
+In `waiting` state, the agent is only transitioned on an external event `new_call`.
+
+      waiting:
+
+        start_of_call: 'busy'
+        end_of_calls: 'idle'
+        logout: 'logged_out'
+        new_call: 'idle'
+
+All other states will re-transition via `idle` first (to force a re-evaluation of the state of the agent).
+
+### State: evaluating
+
+When an agent is free, we first re-evaluate whether there is any other call we may present to them.
+
+First we look in the pool of existing ingress calls, then in the pool of existing (potential) egress calls.
+
+      evaluating:
+
+        start_of_call: 'busy'
+        logout: 'logged_out'
         present: 'presenting'
+        release: 'create_call'
+        timeout: 'idle'
+
+If no existing (or potential) call exists, we attempt to build a new call.
+
+      create_call:
+
+        start_of_call: 'busy'
+        logout: 'logged_out'
+        present: 'presenting'
+        created: 'waiting'
+        not_created: 'waiting'
+        timeout: 'idle'
 
 ### State: busy
 
@@ -435,6 +488,8 @@ The busy state is active when an agent's phone is active but on a call not relat
         logout: 'logged_out_busy'
 
 ### State: away
+
+In `away` state, the queuer will trigger a review of all available agents to dispatch a new call.
 
       away:
 

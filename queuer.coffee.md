@@ -12,79 +12,76 @@
       new Promise (resolve) ->
         setTimeout resolve, timeout
 
+    nextTick = ->
+      new Promise (resolve) ->
+        process.nextTick resolve
+
 Main Queuer
 ===========
 
     module.exports = ({redis,Agent,Call}) ->
 
-      class Pool extends RedisClient
-        constructor: (@name) ->
-          debug 'new Pool', @name
+Call Pool
+---------
+
+      class CallPool extends RedisClient
+        constructor: (@queuer,@name) ->
+          throw new Error 'CallPool requires queuer' unless @queuer?
+          debug 'new CallPool', @name
           @redis = redis if redis?
-          super 'pool', @name
+          super 'CP', @name
 
         add: (call) ->
-          debug 'Pool.add', @name, call.key
-          super call.key
+          debug 'CallPool.add', @name, call.key
+          if super call.key
+            heal call.transition 'pool'
 
         remove: (call) ->
-          debug 'Pool.remove', @name, call.key
-          super call.key
+          debug 'CallPool.remove', @name, call.key
+          if super call.key
+            heal call.transition 'unpool'
 
         has: (call) ->
-          debug 'Pool.has', @name, call.key
+          debug 'CallPool.has', @name, call.key
           super call.key
 
         calls: seem ->
-          debug 'Pool.all', @key
+          debug 'CallPool.all', @key
           result = []
-          yield @forEach seem (key) ->
-            call = new Call {key}
+          yield @forEach seem (key) =>
+            call = new Call @queuer, {key}
             yield call.load()
             result.push call
-          debug 'Pool.all', @key, result
+          debug 'CallPool.all', @key, result
           result
 
-      class EgressAgents extends RedisClient
+Available agents
+----------------
 
-        constructor: (@queuer) ->
-          debug 'new EgressAgents'
+      class AgentPool extends RedisClient
+
+        constructor: (@queuer,@name) ->
+          throw new Error 'AgentPool requires queuer' unless @queuer?
+          debug 'new AgentPool'
           @redis = redis if redis?
-          super 'pool', 'egress-agents'
-          throw new Error 'EgressAgents requires queuer' unless @queuer
+          super 'AP', @name
 
         add: seem (agent) ->
-          debug 'EgressAgents.add', agent.key
-          score = yield agent.get_missed().catch -> 0
+          debug 'AgentPool.add', agent.key
+          score = yield agent.get_missed().catch -> 0.0
           score += Math.random()/100
           @sorted_add agent.key, score
 
         remove: (agent) ->
-          debug 'EgressAgents.remove', agent.key
+          debug 'AgentPool.remove', agent.key
           @sorted_remove agent.key
 
         reevaluate: seem (cb) ->
-          debug 'EgressAgents.reevaluate'
-
-reevaluate the list
-
+          debug 'AgentPool.reevaluate'
           yield @sorted_forEach seem (key) =>
-            debug 'EgressAgents.reevaluate', key
+            debug 'AgentPool.reevaluate', key
             agent = new Agent @queuer, key
-
-if an agent is not idle anymore, remove it
-
-            state = yield agent.get_state()
-            debug 'EgressAgents.reevaluate state', key, state
-            if state isnt 'idle'
-
-              yield @remove agent
-
-otherwise call the cb (in order) for any remaining agent
-
-            else
-
-              yield cb agent
+            yield cb agent
 
           return
 
@@ -113,30 +110,49 @@ For a given agent, their pool of ingress-calls-to-handle is therefor a subset of
 
         constructor: ->
           debug 'new Queuer'
-          @ingress_pool = new Pool 'ingress_pool'
-          @egress_pool = new Pool 'egress_pool'
-          @available_agents = new EgressAgents this
+          @ingress_pool = new CallPool this, 'ingress'
+          @egress_pool = new CallPool this, 'egress'
+          @available_agents = new AgentPool this, 'available'
+
+Evaluate Agent
+--------------
 
 When an agent moves to the `idle` state, the queuer picks one call out of the pool:
 - either an ingress calls (they are always prioritized over egress calls)
 - if no ingress calls require attention, an egress call is created and assigned to the agent.
 
-The method `on_agent_idle` will return true if the agent is still idle after trying to present them with some calls.
-Otherwise it returns false.
+The method `evaluate_agent` will return `true` if an `idle` agent is still available after trying to present them with some calls.
+Otherwise it returns `false`, indicating the agent was not, is not, or is no longer available.
 
-        on_agent_idle: seem (agent) ->
-          debug 'Queuer.on_agent_idle', agent.key
+        __evaluate_agent: seem (agent) ->
+          debug 'Queuer.__evaluate_agent', agent.key
 
-Build Call
-----------
+### Precondition
+
+We force a transition:
+- to ensure that the current state was one that is valid for us to evaluate from;
+- to ensure that no other operation will proceed along the same path at the same time.
+
+          if not yield agent.transition 'evaluate'
+            debug 'Queuer.__evaluate_agent build_call: precondition failed', agent.key, call.key
+
+Return falsey: `evaluate` can only be successful if the previous state was `idle` or `waiting`, so the state was not `idle` nor `waiting`, meaning (since the state was not transitioned) that the agent was not and is not available.
+
+            return false
+
+Give `on_agent` a chance to transition the agent out of the available pool.
+
+          yield nextTick()
+
+### Build Call
 
 Return:
 - a Call (towards or from a selected third-party),
 - or `null`.
 
-          build_call = seem (pool,remove_before = false) =>
+          build_call = seem (pool) =>
 
-            debug 'Queuer.on_agent_idle build_call', agent.key
+            debug 'Queuer.__evaluate_agent build_call', agent.key
 
 The first step is for the agent to find a suitable call in the pool.
 
@@ -146,15 +162,17 @@ The first step is for the agent to find a suitable call in the pool.
 If no call was found the agent's state is unmodified.
 
             if not call?
-              debug 'Queuer.on_agent_idle build_call: no call found', agent.key
+              debug 'Queuer.__evaluate_agent build_call: no call found', agent.key
               return null
 
-For egress calls, ensure the same call is not attempted twice to two different agents (at the same time) or to the same agent (one time after the other).
+            unless yield call.lock()
+              debug 'Queuer.__evaluate_agent build_call: call did not lock', agent.key, call.key
+              return null
 
-            if remove_before
-              yield pool.remove call
-
-            debug 'Queuer.on_agent_idle build_call: agent is no longer available', agent.key, call.key
+            event = if call.broadcasting then 'broadcast' else 'handle'
+            unless yield call.transition event
+              debug 'Queuer.__evaluate_agent build_call: call did not transition to handled', agent.key, call.key
+              return null
 
 Notify: this could be used for example to present a popup to the agent.
 
@@ -162,27 +180,30 @@ Notify: this could be used for example to present a popup to the agent.
 
 Transition the agent.
 
-            debug 'Queuer.on_agent_idle build_call: transition the agent', agent.key, call.key
+            debug 'Queuer.__evaluate_agent build_call: transition the agent', agent.key, call.key
 
             if not yield agent.transition 'present', notification_data
-              debug 'Queuer.on_agent_idle build_call: transition failed', agent.key, call.key
+              debug 'Queuer.__evaluate_agent build_call: transition failed', agent.key, call.key
               return null
 
-            debug 'Queuer.on_agent_idle build_call: transitioned', agent.key, call.key
+            debug 'Queuer.__evaluate_agent build_call: transitioned', agent.key, call.key
+
+Wait a little bit (this is meant to give a popup some time to settle).
+
+            debug 'Queuer.__evaluate_agent build_call: waiting for 1.5s before originate_external', agent.key, call.key
+            yield sleep 1500
+            yield call.load()
 
 For a dial-out (egress) call we first need to attempt to contact the destination.
 For a dial-in (ingress) call we already have the proper call UUID.
 
-            exists = yield call.originate_external()
+            yield call.originate_external()
 
-            debug 'Queuer.on_agent_idle build_call: originate external returned', agent.key, call.key, call.id, exists
+            debug 'Queuer.__evaluate_agent build_call: originate external returned', agent.key, call.key, call.id
 
-Deal with missing / failed remote calls:
-- `exists` might be `missing` for dial-out or dial-in calls.
-- `exists` might be `failed` for dial-out (egress) calls.
-
-            if exists is 'missing' or exists is 'failed' or not call.id?
-              yield pool.remove call
+            call_state = yield call.state()
+            unless call_state is 'handled'
+              debug 'Queuer.__evaluate_agent build_call: call state is not `handled`', agent.key, call.key, call.id, call_state
               yield agent.transition 'hangup', {call}
               return null
 
@@ -190,7 +211,6 @@ Notify the agent of the caller's hangup.
 
             monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
             unless monitor?
-              # yield pool.remove call # ?
               yield agent.transition 'hangup', {call}
               return null
 
@@ -199,27 +219,22 @@ Set the remote call so that `remote_hungup` can do its job.
             yield agent.set_remote_call call
 
             monitor.once 'CHANNEL_HANGUP_COMPLETE', seem =>
-              debug 'Queuer.on_agent_idle build_call: caller hung up', agent.key
+              debug 'Queuer.__evaluate_agent build_call: caller hung up', agent.key
               monitor?.end()
               monitor = null
               yield call.load()
-              yield heal pool.remove call
-              yield heal agent.remote_hungup call
+              yield call.transition 'hungup', {agent}
               return
 
-Wait a little bit (this is meant to give a popup some time to settle).
-
-            debug 'Queuer.on_agent_idle build_call: waiting for 1.5s before originate_external', agent.key, call.key
-            yield sleep 1500
-            yield call.load()
-
             return {call,monitor}
+
+### Send to Agent
 
 We need to send the call to the agent (using either onhook or offhook mode).
 
           send_to_agent = seem (pool,{call,monitor}) ->
 
-            debug 'Queuer.on_agent_idle send_to_agent: originate', agent.key, call.key
+            debug 'Queuer.__evaluate_agent send_to_agent: originate', agent.key, call.key
 
             agent_call = yield agent.originate call
 
@@ -231,9 +246,10 @@ We need to send the call to the agent (using either onhook or offhook mode).
               yield agent.set_remote_call null
               yield agent.incr_missed()
               yield agent.transition 'missed', notification_data
+              heal call.transition 'pool'
               return false
 
-            debug 'Queuer.on_agent_idle send_to_agent: bridge', agent.key, call.key
+            debug 'Queuer.__evaluate_agent send_to_agent: bridge', agent.key, call.key
 
             unless yield call.bridge agent_call
               monitor?.end()
@@ -244,167 +260,169 @@ We need to send the call to the agent (using either onhook or offhook mode).
               yield agent.transition 'failed', notification_data
               return false
 
-            debug 'Queuer.on_agent_idle send_to_agent: Successfully bridged', agent.key, call.key, call.id, agent_call.key
-
-            yield call.add_tag 'bridged'
-            yield call.unbridge_except agent_call.key
-
-            yield agent.reset_missed()
-
-            yield heal pool.remove call
-
-            debug 'Queuer.on_agent_idle send_to_agent: transition agent', agent.key, call.key, call.id, agent_call.key
+            debug 'Queuer.__evaluate_agent send_to_agent: Successfully bridged', agent.key, call.key, call.id, agent_call.key
             yield agent.transition 'answer', notification_data
 
-Main body for `on_agent_idle`
------------------------------
+### Main body for `__evaluate_agent`
 
           some_call = yield agent.get_remote_call()
           if some_call?
-            debug.dev 'Error: Agent is idle but still has remote call', agent.key, some_call.key
+            debug.dev 'Error: Agent was idle/waiting but still had a remote call', agent.key, some_call.key
           yield agent.set_remote_call null
 
 Ingress pool
 
-          debug 'Queuer.on_agent_idle: ingress pool', agent.key
+          debug 'Queuer.__evaluate_agent: ingress pool', agent.key
 
           response = yield build_call(@ingress_pool).catch (error) ->
-            debug.ops 'Queuer.on_agent_idle: ingress pool, error in build_call', error.stack ? error.toString()
+            debug.ops 'Queuer.__evaluate_agent: ingress pool, error in build_call', error.stack ? error.toString()
             null
 
           if response?
 
-            debug 'Queuer.on_agent_idle: ingress pool, got client call', agent.key
+            debug 'Queuer.__evaluate_agent: ingress pool, got client call', agent.key
 
             answered = yield send_to_agent(@ingress_pool, response).catch (error) ->
-              debug.ops 'Queuer.on_agent_idle: ingress pool, error in send_to_agent', error.stack ? error.toString()
+              debug.ops 'Queuer.__evaluate_agent: ingress pool, error in send_to_agent', error.stack ? error.toString()
               response?.monitor?.end()
               null
 
-            debug "Queuer.on_agent_idle: ingress pool, agent answered=#{answered}", agent.key
+            debug "Queuer.__evaluate_agent: ingress pool, agent answered=#{answered}", agent.key
             return true if answered is null
             return false if answered
 
           else
-            debug "Queuer.on_agent_idle: ingress pool, no matching client call", agent.key
+            debug "Queuer.__evaluate_agent: ingress pool, no matching client call", agent.key
 
 Egress pool
 
-          debug 'Queuer.on_agent_idle: egress pool', agent.key
+          debug 'Queuer.__evaluate_agent: egress pool', agent.key
 
           response = yield build_call(@egress_pool, true).catch (error) ->
-            debug.ops 'Queuer.on_agent_idle: egress pool, error in build_call', error.stack ? error.toString()
+            debug.ops 'Queuer.__evaluate_agent: egress pool, error in build_call', error.stack ? error.toString()
             null
 
           if response?
 
-            debug 'Queuer.on_agent_idle: egress pool, got client call', agent.key
+            debug 'Queuer.__evaluate_agent: egress pool, got client call', agent.key
+
+            @egress_pool.remove response.call
 
             answered = yield send_to_agent(@egress_pool, response).catch(error) ->
-              debug.ops 'Queuer.on_agent_idle: egress pool, error in send_to_agent', error.stack ? error.toString()
+              debug.ops 'Queuer.__evaluate_agent: egress pool, error in send_to_agent', error.stack ? error.toString()
               response?.monitor?.end()
               null
 
-            debug "Queuer.on_agent_idle: egress pool, agent answered=#{answered}", agent.key
+            debug "Queuer.__evaluate_agent: egress pool, agent answered=#{answered}", agent.key
             return true if answered is null
             return false if answered
 
           else
-            debug "Queuer.on_agent_idle: egress pool, no matching client call", agent.key
+            debug "Queuer.__evaluate_agent: egress pool, no matching client call", agent.key
 
 No call
 
-          debug 'Queuer.on_agent_idle: no call', agent.key
-          yield agent.park()
-
+          debug 'Queuer.__evaluate_agent: no call', agent.key
+          if yield agent.transition 'release'
+            yield agent.park()
 
         queue_ingress_call: seem (call) ->
           debug 'Queuer.queue_ingress_call'
-          yield @ingress_pool.add call
           monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
           monitor?.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
             debug 'Queuer.queue_ingress_call: channel hangup complete', call.key
             monitor?.end()
             monitor = null
-            yield call.load()
             switch body?.variable_hangup_cause
               when 'ATTENDED_TRANSFER'
                 debug 'Queuer.queue_ingress_call: attended_transfer'
-                call.report state:'transferred-queuer', event:'attended-transfer'
+                call.transition 'attended-transfer'
               when 'BLIND_TRANSFER'
                 debug 'Queuer.queue_ingress_call: blind_transfer'
-                call.report state:'transferred-queuer', event:'blind-transfer'
+                call.transition 'blind-transfer'
               else
-                call.report state:'hungup-queuer'
-                yield @hungup_ingress_call call
+                call.transition 'hungup'
             return
-          yield @reevaluate_idle_agents()
+          yield @ingress_pool.add call
 
-        hungup_ingress_call: seem (call) ->
-          debug 'Queuer.hungup_ingress_call'
-          yield call.load()
-          yield call.unbridge_except()
-          yield @ingress_pool.remove call
-
-An egress pool is a set of dynamically constructed call instances (for example using an iterator). The call instance is created using data found e.g. in a database, the (egress) call is placed in the pool, and the idle agents are re-evaluated.
-
-        queue_egress_call: seem (call) ->
-          debug 'Queuer.queue_egress_call'
-          yield @egress_pool.add call
-          yield @reevaluate_idle_agents()
-
-        report_idle: seem (agent) ->
-          debug 'Queuer.report_idle', agent.key
-          yield @available_agents.add agent
-          yield @create_egress_call_for agent
-
-        report_non_idle: (agent) ->
-          debug 'Queuer.report_non_idle', agent.key
-          @available_agents.remove agent
-
-        reevaluate_idle_agents: ->
-          debug 'Queuer.reevaluate_idle_agents'
-          @available_agents.reevaluate (agent) =>
-            debug 'Queuer.reevaluate_idle_agents', agent.key
-            @on_agent_idle agent
+        __transition_available_agents: (event) ->
+          debug 'Queuer.__transition_available_agents: postpone', {event}
+          process.nextTick =>
+            debug 'Queuer.__transition_available_agents: start', {event}
+            @available_agents.reevaluate (agent) ->
+              debug 'Queuer.__transition_available_agents for agent', {agent: agent.key, event}
+              agent.transition event
+          return
 
         create_egress_call_for: seem (agent) ->
           debug 'Queuer.create_egress_call_for', agent.key
+
+The call instance is created using data found e.g. in a database, the (egress) call is placed in the pool, and the idle agents are re-evaluated.
+
           call = yield agent.create_egress_call()
           if call?
-            yield @queue_egress_call call
+            debug 'Queuer.create_egress_call_for: queue egress call', agent.key, call.key
+            yield agent.transition 'created'
+            yield @egress_pool.add call
+          else
+            debug 'Queuer.create_egress_call_for: no call', agent.key
+            yield agent.transition 'not_created'
 
-        new_idle_agent: seem (agent) ->
-          yield sleep 100+300*Math.random()
-          if yield @on_agent_idle agent
-            yield @report_idle agent
-
-        on_agent: seem (agent,state) ->
+        on_agent: seem (agent,data) ->
+          {state,event} = data
           debug 'Queuer.on_agent', agent.key, state
 
-          if state is 'logged_out'
-            yield agent.reset_missed()
-            yield agent.clear()
+Only states were the agent might transition via `evaluate` are considered as states were the agents is available.
 
-          if state is 'wrap_up'
-            yield agent.wrapup()
+          switch state
+            when 'idle', 'waiting'
+              yield @available_agents.add agent
+            else
+              yield @available_agents.remove agent
 
-If an agent becomes away it is because they missed a call.
-That call still needs to be presented to available agents.
+          switch state
+            when 'logged_out'
+              yield agent.reset_missed()
+              yield agent.clear()
 
-          if state is 'away'
-            yield @reevaluate_idle_agents()
+            when 'in_call'
+              yield agent.reset_missed()
 
-If the agent is not idle no further processing is required.
-
-          if state isnt 'idle'
-            yield @report_non_idle agent
-            return
+            when 'wrap_up'
+              yield agent.wrapup()
 
 If the agent is idle, move forward in the background.
 
-          heal @new_idle_agent agent
+            when 'idle'
+              yield @__evaluate_agent agent
+
+            when 'create_call'
+              yield @create_egress_call_for agent
+
           return
+
+        on_call: seem (call,data) ->
+
+          switch data.state
+
+            when 'new' # aka `forgotten`
+              yield heal @ingress_pool.add call
+
+            when 'pooled'
+              @__transition_available_agents 'new_call'
+
+            when 'bridged'
+              yield @ingress_pool.remove call
+              yield @egress_pool.remove call
+              yield call.unbridge_except data.agent_call.key
+
+            when 'dropped'
+              yield @ingress_pool.remove call
+              yield @egress_pool.remove call
+              if data.agent?
+                yield heal agent.remote_hungup call
+              else
+                yield heal call.unbridge_except()
 
 Agent behavior
 --------------

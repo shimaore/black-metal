@@ -1,10 +1,19 @@
 class Call: a call from or towards a customer
+=====
 
     @name = 'black-metal:call'
     debug = (require 'tangible') @name
     seem = require 'seem'
+    heal = (p) -> p.catch debug.catch
+    hand = (f) ->
+      F = seem f
+      (args...) -> heal F args...
     Solid = require 'solid-gun'
     RedisClient = require 'normal-key/client'
+
+    seconds = 1000
+    minutes = 60*seconds
+    timeout_duration = 1*minutes
 
     make_id = ->
       Solid.time() + Solid.uniqueness()
@@ -18,7 +27,8 @@ class Call: a call from or towards a customer
 
     class Call extends RedisClient
 
-      constructor: ({@destination,@id,key}) ->
+      constructor: (@queuer,{@destination,@id,key}) ->
+        throw new Error 'Call requires queuer' unless @queuer?
 
 Load an existing call profile back.
 
@@ -53,11 +63,75 @@ Create a new profile
 
       exists: seem ->
         if @id?
-          yield @api "uuid_exists #{@id}"
+          if yield @api "uuid_exists #{@id}"
+            true
+          else
+            yield @transition 'miss'
+            false
         else
           null
 
       report: ->
+
+Handle transitions
+------------------
+
+      lock: seem ->
+        offset = Math.ceil 1000000 * Math.random()
+
+        count = 10
+        while count-- > 0
+          before = (yield @incr 'lock', offset)?[0]?[0]?[1]
+          return yes if before is offset
+          yield sleep 20 * Math.random()
+        return no
+
+      transition: seem (event, notification_data = {}) ->
+        debug 'Call.transition', {call: @key, event}
+        yield @load()
+
+        old_state = yield @state()
+        old_state ?= initial_state
+
+        debug 'Call.transition', {call: @key, event, old_state}
+
+        unless old_state of _transition
+          yield @set_state initial_state
+          throw new Error "Invalid state, transition from #{old_state} → event #{event}"
+
+        unless event of _transition[old_state]
+          debug "Ignoring event #{event} in state #{old_state}", {call: @key}
+          return false
+
+        new_state = _transition[old_state][event]
+
+        if @__timeout?
+          clearTimeout @__timeout
+          @__timeout = null
+
+        unless new_state of _transition
+          yield @set_state initial_state
+          throw new Error "Invalid state machine, transition from #{old_state} → event #{event} leads to unknown state #{new_state}"
+
+        debug 'Call.transition', {call: @key, event, old_state, new_state}
+        if new_state?
+          yield @set_state new_state
+
+          yield @reset 'lock'
+
+          notification_data.old_state = old_state
+          notification_data.state = new_state
+          notification_data.event = event
+
+          yield @report? notification_data
+          if 'timeout' of _transition[new_state]
+            @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration
+
+          process.nextTick => heal @queuer.on_call this, notification_data
+
+          return true
+        else
+          return false
 
 Originate a call towards an agent
 ---------------------------------
@@ -65,6 +139,8 @@ Originate a call towards an agent
 Make sure to define the `api` method` and the `profile` member.
 
 The destination endpoint is stored as the `@destination` field.
+
+The `caller` object is the remote Call object.
 
       originate_internal: seem (caller) ->
         debug 'Call.originate_internal', @key, @destination
@@ -151,10 +227,8 @@ The `reference` ID is stored as the `@destination` field.
 Ingress (or otherwise existing) call
 
         if @id?
-          if yield @exists()
-            return this
-          else
-            return 'missing'
+          yield @exists()
+          return
 
 Egress call
 
@@ -191,14 +265,18 @@ This is similar to what we do with `place-call` but we're calling the other way 
           yield @set_reference reference
           this
         else
-          'failed'
+          yield @call.transition 'fail'
+          return
 
       bridge: seem (agent_call) ->
         debug 'Call.bridge', @id, agent_call.id
         yield @api "uuid_break #{@id}"
         yield @api "uuid_broadcast #{agent_call.id} gentones::%(100,20,400);%(100,0,600) aleg"
         yield sleep 400
-        yield @api "uuid_bridge #{@id} #{agent_call.id}"
+        if yield @api "uuid_bridge #{@id} #{agent_call.id}"
+          yield @transition 'bridge', {agent_call}
+        else
+          false
 
 Remove all the matched calls, except maybe one.
 
@@ -234,6 +312,7 @@ with the gentones notifications.
         @id = null
         @destination = null
         yield @save()
+        yield @transition 'hangup'
 
       monitor: seem (events...) ->
         debug 'Call.monitor', @id
@@ -250,8 +329,17 @@ with the gentones notifications.
         count = yield @count()
         count > 0
 
+      state: ->
+        @get 'state'
+
+      set_state: (state) ->
+        @set 'state', state
+
       bridged: seem ->
-        yield @has_tag 'bridged'
+        'bridged' is yield @state()
+
+      broadcast: ->
+        @has_tag 'broadcast'
 
       set_remote_number: (number) ->
         @set 'remote-number', number
@@ -282,5 +370,49 @@ with the gentones notifications.
 
       get_music: ->
         @get 'music'
+
+Call Transitions
+----------------
+
+    initial_state = 'new'
+
+    _transition =
+
+If a call is transitioned back to `new` it means it got forgotten.
+
+      new:
+        hangup: 'dropped' # hungup locally
+        hungup: 'dropped' # hungup by remote end
+        miss: 'dropped' # disappeared from system
+        pool: 'pooled'
+        timeout: 'new' # forgotten
+
+Only pooled calls actually get considered.
+
+      pooled:
+        broadcast: 'handled'
+        handle: 'handled'
+        hangup: 'dropped' # hungup locally
+        hungup: 'dropped' # hungup by remote end
+        miss: 'dropped' # disappeared from system
+        timeout: 'new'
+        unpool: 'new'
+
+      handled:
+        bridge: 'bridged'
+        broadcast: 'handled'
+        fail: 'dropped'
+        hangup: 'dropped' # hungup locally
+        hungup: 'dropped' # hungup by remote end
+        miss: 'dropped' # disappeared from system
+        pool: 'pooled' # force re-try
+        timeout: 'pooled' # force re-try
+
+      bridged:
+        hangup: 'dropped' # hungup locally
+        hungup: 'dropped' # hungup by remote end
+        miss: 'dropped' # disappeared from system
+
+      dropped: {}
 
     module.exports = Call
