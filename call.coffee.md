@@ -27,6 +27,11 @@ class Call: a call from or towards a customer
 
     class Call extends RedisClient
 
+The following two methods MUST be provided by an implementation class:
+
+      api: (cmd) -> throw new Error 'Call.api is not implemented.'
+      monitor_api: (id,events) -> throw new Error 'Call.monitor_api is not implemented'
+
       constructor: (@queuer,{@destination,@id,key}) ->
         throw new Error 'Call requires queuer' unless @queuer?
 
@@ -314,12 +319,10 @@ with the gentones notifications.
         yield @save()
         yield @transition 'hangup'
 
-      monitor: seem (events...) ->
+      monitor: (events...) ->
         debug 'Call.monitor', @id
         return null unless @id?
-        client = yield @api "myevents #{@id} json"
-        yield client?.event_json events...
-        client
+        @monitor_api @id, events
 
       announce: seem (file) ->
         debug 'Call.announce', @id, file

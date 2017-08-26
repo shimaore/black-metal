@@ -33,15 +33,16 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
 
       api = (cmd) ->
         debug 'api', cmd
-        if cmd.match /^myevents/
-          return Promise.resolve
-            once: ->
-            on: ->
-            event_json: ->
-            end: ->
         if cmd.match /^uuid_exists/
           return Promise.resolve 'true'
         Promise.resolve true
+
+      monitor_api = (id,events) ->
+        debug 'monitor_api'
+        return
+          once: ->
+          on: ->
+          end: ->
 
       profile = 'booh!'
       class Reference
@@ -54,6 +55,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
       class TestCall extends require '../call'
         redis: redis_interface
         api: api
+        monitor_api: monitor_api
         profile: profile
         Reference: Reference
 
@@ -124,7 +126,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         (yield redis.hget 'agent-lalala-P', 'state').should.equal 'waiting'
 
       it 'should transition on ingress', seem ->
-        @timeout 4000
+        @timeout 5000
         queuer = new Queuer()
         lalilo = new TestAgent queuer, 'lalilo'
         laloli = new TestAgent queuer, 'laloli'
@@ -139,7 +141,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         yield call.save()
         yield call.set_reference 'hello-again'
         yield queuer.queue_ingress_call call
-        yield sleep 2000
+        yield sleep 2500
         in_call = 0
         in_call += 1 if (yield redis.hget 'agent-lalilo-P', 'state') is 'in_call'
         in_call += 1 if (yield redis.hget 'agent-laloli-P', 'state') is 'in_call'

@@ -209,7 +209,7 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
 Notify the agent of the caller's hangup.
 
-            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
+            monitor = call.monitor 'CHANNEL_HANGUP_COMPLETE'
             unless monitor?
               yield agent.transition 'hangup', {call}
               return null
