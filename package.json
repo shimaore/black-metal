@@ -26,11 +26,10 @@
   },
   "dependencies": {
     "bluebird": "^3.5.0",
-    "esl": "^5.4.0",
     "normal-key": "^3.0.0",
     "seem": "^2.0.0",
     "solid-gun": "^1.0.0",
-    "tangible": "^1.7.0"
+    "tangible": "^1.8.3"
   },
   "publishConfig": {
     "tag": "development"
