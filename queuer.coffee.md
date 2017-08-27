@@ -19,7 +19,7 @@
 Main Queuer
 ===========
 
-    module.exports = ({redis,Agent,Call}) ->
+    module.exports = (redis_interface,{Agent,Call}) ->
 
 Call Pool
 ---------
@@ -28,8 +28,9 @@ Call Pool
         constructor: (@queuer,@name) ->
           throw new Error 'CallPool requires queuer' unless @queuer?
           debug 'new CallPool', @name
-          @redis = redis if redis?
           super 'CP', @name
+
+        interface: redis_interface
 
         add: (call) ->
           debug 'CallPool.add', @name, call.key
@@ -63,8 +64,9 @@ Available agents
         constructor: (@queuer,@name) ->
           throw new Error 'AgentPool requires queuer' unless @queuer?
           debug 'new AgentPool'
-          @redis = redis if redis?
           super 'AP', @name
+
+        interface: redis_interface
 
         add: seem (agent) ->
           debug 'AgentPool.add', agent.key

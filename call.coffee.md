@@ -86,7 +86,7 @@ Handle transitions
 
         count = 10
         while count-- > 0
-          before = (yield @incr 'lock', offset)?[0]?[0]?[1]
+          before = yield @incr 'lock', offset
           return yes if before is offset
           yield sleep 20 * Math.random()
         return no

@@ -13,7 +13,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
 
     describe 'The Agent', ->
       redis = new Redis()
-      redis_interface = new RedisInterface [redis]
+      redis_interface = new RedisInterface redis
 
       policy = (calls) ->
         debug 'policy_for…'
@@ -53,19 +53,19 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         add_in: -> Promise.resolve yes
 
       class TestCall extends require '../call'
-        redis: redis_interface
+        interface: redis_interface
         api: api
         monitor_api: monitor_api
         profile: profile
         Reference: Reference
 
       class TestAgent extends require '../agent'
-        redis: redis_interface
+        interface: redis_interface
         policy: policy
         create_egress_call: create_egress_call
         new_call: (data) -> new TestCall @queuer, data
 
-      Queuer = (require '../queuer') redis: redis_interface, Agent: TestAgent, Call: TestCall
+      Queuer = (require '../queuer') redis_interface, Agent: TestAgent, Call: TestCall
 
       cleanup = seem ->
         yield redis.del 'agent-lalala-S'
