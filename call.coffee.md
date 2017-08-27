@@ -84,7 +84,9 @@ Handle transitions
       lock: seem ->
         offset = Math.ceil 1000000 * Math.random()
 
-        count = 10
+        yield sleep 20 * Math.random()
+
+        count = 7
         while count-- > 0
           before = yield @incr 'lock', offset
           return yes if before is offset
@@ -130,7 +132,7 @@ Handle transitions
 
           yield @report? notification_data
           if 'timeout' of _transition[new_state]
-            @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration
+            @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration-500+1000*Math.random()
 
           process.nextTick => heal @queuer.on_call this, notification_data
 

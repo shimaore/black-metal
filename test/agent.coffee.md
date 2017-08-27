@@ -146,4 +146,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         in_call += 1 if (yield redis.hget 'agent-lalilo-P', 'state') is 'in_call'
         in_call += 1 if (yield redis.hget 'agent-laloli-P', 'state') is 'in_call'
         chai.expect(in_call).to.equal 1
-        (yield redis.hget 'agent-laloli-P', 'state').should.equal 'waiting'
+        waiting = 0
+        waiting += 1 if (yield redis.hget 'agent-lalilo-P', 'state') is 'waiting'
+        waiting += 1 if (yield redis.hget 'agent-laloli-P', 'state') is 'waiting'
+        chai.expect(waiting).to.equal 1

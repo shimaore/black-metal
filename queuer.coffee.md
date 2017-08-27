@@ -193,7 +193,7 @@ Transition the agent.
 Wait a little bit (this is meant to give a popup some time to settle).
 
             debug 'Queuer.__evaluate_agent build_call: waiting for 1.5s before originate_external', agent.key, call.key
-            yield sleep 1500
+            yield sleep 1500-100+200*Math.random()
             yield call.load()
 
 For a dial-out (egress) call we first need to attempt to contact the destination.

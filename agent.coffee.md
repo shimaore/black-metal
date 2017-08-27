@@ -114,7 +114,7 @@ Handle transitions
 
           yield @notify? {old_state,new_state,event}, notification_data
           if 'timeout' of _transition[new_state]
-            @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration
+            @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration-500+1000*Math.random()
 
           process.nextTick => heal @queuer.on_agent this, notification_data
 
