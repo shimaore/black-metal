@@ -144,8 +144,8 @@ Other tags might be added by the application (for example to add caller-based ta
 
     class TaggedCall extends Call
 
-      constructor: (opts) ->
-        super opts
+      constructor: (queuer,opts) ->
+        super queuer, opts
         debug 'new TaggedCall'
         @started_at = new Date().getTime()
 
