@@ -1,6 +1,6 @@
 {
   "name": "black-metal",
-  "version": "10.0.0-0",
+  "version": "10.0.0",
   "description": "Call-center queuer (inbound & outbound) for CCNQ4",
   "main": "index.js",
   "scripts": {
@@ -32,6 +32,6 @@
     "tangible": "^1.8.3"
   },
   "publishConfig": {
-    "tag": "development"
+    "tag": "latest"
   }
 }
