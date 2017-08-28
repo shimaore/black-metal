@@ -17,6 +17,7 @@ The policy is:
         debug 'Checking call for agent', call.key, @key
 
         call_state = yield call.state()
+        agent_state = yield @get_state()
 
         switch call_state
           when 'pooled'
@@ -39,7 +40,7 @@ Do not make parallel attempts for calls that have no id (outbound calls).
           else
             return false
 
-        call.waiting = if presenting then 0 else 1
+        call.waiting = if call_state is 'handled' then 0 else 1
 
         call_tags = new Set yield call.tags()
 
