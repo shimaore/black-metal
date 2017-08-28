@@ -176,15 +176,11 @@ If no call was found the agent's state is unmodified.
               debug 'Queuer.__evaluate_agent build_call: call did not transition to handled', agent.key, call.key
               return null
 
-Notify: this could be used for example to present a popup to the agent.
-
-            notification_data = {call}
-
 Transition the agent.
 
             debug 'Queuer.__evaluate_agent build_call: transition the agent', agent.key, call.key
 
-            if not yield agent.transition 'present', notification_data
+            if not yield agent.transition 'present', {call}
               debug 'Queuer.__evaluate_agent build_call: transition failed', agent.key, call.key
               return null
 
@@ -211,7 +207,7 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
 Notify the agent of the caller's hangup.
 
-            monitor = call.monitor 'CHANNEL_HANGUP_COMPLETE'
+            monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
             unless monitor?
               yield agent.transition 'hangup', {call}
               return null
@@ -220,12 +216,13 @@ Set the remote call so that `remote_hungup` can do its job.
 
             yield agent.set_remote_call call
 
-            monitor.once 'CHANNEL_HANGUP_COMPLETE', seem =>
+            monitor.once 'CHANNEL_HANGUP_COMPLETE', hand =>
               debug 'Queuer.__evaluate_agent build_call: caller hung up', agent.key
               monitor?.end()
               monitor = null
               yield call.load()
-              yield call.transition 'hungup', {agent}
+              yield call.transition 'hungup'
+              yield agent.remote_hungup call
               return
 
             return {call,monitor}
@@ -240,30 +237,28 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             agent_call = yield agent.originate call
 
-            notification_data = {call}
-
             unless agent_call?
-              monitor?.end()
+              yield monitor?.end()
               monitor = null
               yield agent.set_remote_call null
               yield agent.incr_missed()
-              yield agent.transition 'missed', notification_data
+              yield agent.transition 'missed', {call}
               heal call.transition 'pool'
               return false
 
             debug 'Queuer.__evaluate_agent send_to_agent: bridge', agent.key, call.key
 
             unless yield call.bridge agent_call
-              monitor?.end()
+              yield monitor?.end()
               monitor = null
               yield heal call.remove agent_call.id # undo what was done in `call.originate_internal`
               yield agent.set_remote_call null
               yield agent_call.hangup()
-              yield agent.transition 'failed', notification_data
+              yield agent.transition 'failed', {call}
               return false
 
             debug 'Queuer.__evaluate_agent send_to_agent: Successfully bridged', agent.key, call.key, call.id, agent_call.key
-            yield agent.transition 'answer', notification_data
+            yield agent.transition 'answer', {call}
 
 ### Main body for `__evaluate_agent`
 
@@ -284,9 +279,9 @@ Ingress pool
 
             debug 'Queuer.__evaluate_agent: ingress pool, got client call', agent.key
 
-            answered = yield send_to_agent(@ingress_pool, response).catch (error) ->
+            answered = yield send_to_agent(@ingress_pool, response).catch hand (error) ->
               debug.ops 'Queuer.__evaluate_agent: ingress pool, error in send_to_agent', error.stack ? error.toString()
-              response?.monitor?.end()
+              yield response?.monitor?.end()
               null
 
             debug "Queuer.__evaluate_agent: ingress pool, agent answered=#{answered}", agent.key
@@ -310,9 +305,9 @@ Egress pool
 
             @egress_pool.remove response.call
 
-            answered = yield send_to_agent(@egress_pool, response).catch(error) ->
+            answered = yield send_to_agent(@egress_pool, response).catch hand (error) ->
               debug.ops 'Queuer.__evaluate_agent: egress pool, error in send_to_agent', error.stack ? error.toString()
-              response?.monitor?.end()
+              yield response?.monitor?.end()
               null
 
             debug "Queuer.__evaluate_agent: egress pool, agent answered=#{answered}", agent.key
@@ -333,17 +328,17 @@ No call
           monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE'
           monitor?.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
             debug 'Queuer.queue_ingress_call: channel hangup complete', call.key
-            monitor?.end()
+            yield monitor?.end()
             monitor = null
             switch body?.variable_hangup_cause
               when 'ATTENDED_TRANSFER'
                 debug 'Queuer.queue_ingress_call: attended_transfer'
-                call.transition 'attended-transfer'
+                yield call.transition 'attended-transfer'
               when 'BLIND_TRANSFER'
                 debug 'Queuer.queue_ingress_call: blind_transfer'
-                call.transition 'blind-transfer'
+                yield call.transition 'blind-transfer'
               else
-                call.transition 'hungup'
+                yield call.transition 'hungup'
             return
           yield @ingress_pool.add call
 
@@ -371,7 +366,7 @@ The call instance is created using data found e.g. in a database, the (egress) c
             yield agent.transition 'not_created'
 
         on_agent: seem (agent,data) ->
-          {state,event} = data
+          {state} = data
           debug 'Queuer.on_agent', agent.key, state
 
 Only states were the agent might transition via `evaluate` are considered as states were the agents is available.
@@ -404,8 +399,10 @@ If the agent is idle, move forward in the background.
           return
 
         on_call: seem (call,data) ->
+          {state} = data
+          debug 'Queuer.on_call', call.key, state
 
-          switch data.state
+          switch state
 
             when 'new' # aka `forgotten`
               yield heal @ingress_pool.add call
@@ -416,15 +413,22 @@ If the agent is idle, move forward in the background.
             when 'bridged'
               yield @ingress_pool.remove call
               yield @egress_pool.remove call
-              yield call.unbridge_except data.agent_call.key
+
+
+              if data.agent_call?
+
+Do not automatically close the agent's call (in `dropped`) when a remote party hangs up.
+
+                yield call.remove data.agent_call.key
+
+Hang up all other (ringing) agents.
+
+                yield call.unbridge_except data.agent_call.key
 
             when 'dropped'
               yield @ingress_pool.remove call
               yield @egress_pool.remove call
-              if data.agent?
-                yield heal agent.remote_hungup call
-              else
-                yield heal call.unbridge_except()
+              yield call.unbridge_except()
 
 Agent behavior
 --------------

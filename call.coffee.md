@@ -289,10 +289,10 @@ Remove all the matched calls, except maybe one.
 
       unbridge_except: seem (except = null) ->
         debug 'Call.unbridge_except', @id, except
-        yield @forEach (id) =>
+        yield @forEach hand (id) =>
           return if id is except
-          @api("uuid_kill #{id}").catch -> yes
-        yield @clear()
+          yield @api("uuid_kill #{id}").catch -> yes
+          yield @remove id
 
       park: seem ->
         debug 'Call.park', @id

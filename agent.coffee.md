@@ -112,7 +112,7 @@ Handle transitions
           notification_data.state = new_state
           notification_data.event = event
 
-          yield @notify? {old_state,new_state,event}, notification_data
+          yield @notify? notification_data
           if 'timeout' of _transition[new_state]
             @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration-500+1000*Math.random()
 
@@ -178,7 +178,7 @@ Start of an off-hook session for the agent (used by huge-play)
 Attempt to transition to login with the call-id.
 
         agent_call = @new_call id: call_uuid
-        unless @__monitor agent_call
+        unless yield @__monitor agent_call
           yield heal agent_call.hangup()
           return null
 
@@ -221,7 +221,7 @@ For on-hook we need to call the agent.
         unless agent_call?
           return null
 
-        unless @__monitor agent_call
+        unless yield @__monitor agent_call
           yield heal caller.remove agent_call.id
           heal agent_call.hangup()
           return null
