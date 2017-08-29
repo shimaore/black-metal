@@ -333,10 +333,10 @@ No call
             switch body?.variable_hangup_cause
               when 'ATTENDED_TRANSFER'
                 debug 'Queuer.queue_ingress_call: attended_transfer'
-                yield call.transition 'attended-transfer'
+                yield call.transition 'attended_transfer'
               when 'BLIND_TRANSFER'
                 debug 'Queuer.queue_ingress_call: blind_transfer'
-                yield call.transition 'blind-transfer'
+                yield call.transition 'blind_transfer'
               else
                 yield call.transition 'hungup'
             return

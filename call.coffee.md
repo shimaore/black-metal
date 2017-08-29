@@ -423,6 +423,8 @@ Only pooled calls actually get considered.
         timeout_duration: 67*seconds
 
       bridged:
+        attended_transfer: 'dropped'
+        blind_transfer: 'dropped'
         hangup: 'dropped' # hungup locally
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
