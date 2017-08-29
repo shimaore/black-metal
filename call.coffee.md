@@ -408,7 +408,7 @@ Only pooled calls actually get considered.
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
         timeout: 'new'
-        timeout_duration: 61*seconds
+        timeout_duration: 31*seconds # for overflow
         unpool: 'new'
 
       handled:
@@ -428,6 +428,7 @@ Only pooled calls actually get considered.
         hangup: 'dropped' # hungup locally
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
+        pool: 'pooled' # on transfer
 
       dropped: {}
 
