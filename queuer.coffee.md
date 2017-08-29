@@ -115,6 +115,7 @@ For a given agent, their pool of ingress-calls-to-handle is therefor a subset of
           @ingress_pool = new CallPool this, 'ingress'
           @egress_pool = new CallPool this, 'egress'
           @available_agents = new AgentPool this, 'available'
+          @__timers = {}
 
 Evaluate Agent
 --------------
@@ -429,6 +430,15 @@ Hang up all other (ringing) agents.
               yield @ingress_pool.remove call
               yield @egress_pool.remove call
               yield call.unbridge_except()
+
+        clear_timer: (key) ->
+          if @__timers[key]?
+            clearTimeout @__timers[key]
+            delete @__timers[key]
+
+        set_timer: (key,timer) ->
+          @clear_timer key
+          @__timers[key] = timer
 
 Agent behavior
 --------------

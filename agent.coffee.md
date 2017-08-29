@@ -95,9 +95,7 @@ Handle transitions
 
         new_state = _transition[old_state][event]
 
-        if @__timeout?
-          clearTimeout @__timeout
-          @__timeout = null
+        @queuer.clear_timer @key
 
         unless new_state of _transition
           yield @set_state initial_state
@@ -114,7 +112,10 @@ Handle transitions
           yield @notify? notification_data
           next_state = _transition[new_state]
           if 'timeout' of next_state and 'timeout_duration' of next_state
-            @__timeout = setTimeout (=> @transition 'timeout'), next_state.timeout_duration-500+1000*Math.random()
+            on_timeout = =>
+              @queuer.clear_timer @key
+              heal @transition 'timeout'
+            @queuer.set_timer @key, setTimeout on_timeout, next_state.timeout_duration-500+1000*Math.random()
 
           process.nextTick => heal @queuer.on_agent this, notification_data
 
