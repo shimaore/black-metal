@@ -13,7 +13,12 @@ class Call: a call from or towards a customer
 
     seconds = 1000
     minutes = 60*seconds
-    timeout_duration = 1*minutes
+
+Keep these under the shortest state-machine timer, currently 59s.
+
+    progress_timeout = 18
+    internal_timeout = 22
+    external_timeout = 30
 
     make_id = ->
       Solid.time() + Solid.uniqueness()
@@ -131,8 +136,9 @@ Handle transitions
           notification_data.event = event
 
           yield @report? notification_data
-          if 'timeout' of _transition[new_state]
-            @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration-500+1000*Math.random()
+          next_state = _transition[new_state]
+          if 'timeout' of next_state and 'timeout_duration' of next_state
+            @__timeout = setTimeout (=> @transition 'timeout'), next_state.timeout_duration-500+1000*Math.random()
 
           process.nextTick => heal @queuer.on_call this, notification_data
 
@@ -194,8 +200,8 @@ Agent in on-hook mode
           origination_caller_id_number: source
           hangup_after_bridge: false
           park_after_bridge: true
-          progress_timeout: 18
-          originate_timeout: 22
+          progress_timeout: progress_timeout
+          originate_timeout: internal_timeout
           'sip_h_X-En': @destination # Centrex-only
           alert_info: alert_info
           sip_invite_params: xref
@@ -255,8 +261,8 @@ This is similar to what we do with `place-call` but we're calling the other way 
           origination_uuid: id
           hangup_after_bridge: false
           park_after_bridge: true
-          progress_timeout: 18
-          originate_timeout: 30
+          progress_timeout: progress_timeout
+          originate_timeout: external_timeout
           sip_invite_params: xref
           sip_invite_to_params: xref
           sip_invite_contact_params: xref
@@ -391,6 +397,7 @@ If a call is transitioned back to `new` it means it got forgotten.
         miss: 'dropped' # disappeared from system
         pool: 'pooled'
         timeout: 'new' # forgotten
+        timeout_duration: 59*seconds
 
 Only pooled calls actually get considered.
 
@@ -401,6 +408,7 @@ Only pooled calls actually get considered.
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
         timeout: 'new'
+        timeout_duration: 61*seconds
         unpool: 'new'
 
       handled:
@@ -412,6 +420,7 @@ Only pooled calls actually get considered.
         miss: 'dropped' # disappeared from system
         pool: 'pooled' # force re-try
         timeout: 'pooled' # force re-try
+        timeout_duration: 67*seconds
 
       bridged:
         hangup: 'dropped' # hungup locally

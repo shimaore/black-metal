@@ -12,7 +12,6 @@ Agent
 
     seconds = 1000
     minutes = 60*seconds
-    timeout_duration = 12*seconds
 
     class Agent extends RedisClient
 
@@ -113,8 +112,9 @@ Handle transitions
           notification_data.event = event
 
           yield @notify? notification_data
-          if 'timeout' of _transition[new_state]
-            @__timeout = setTimeout (=> @transition 'timeout'), timeout_duration-500+1000*Math.random()
+          next_state = _transition[new_state]
+          if 'timeout' of next_state and 'timeout_duration' of next_state
+            @__timeout = setTimeout (=> @transition 'timeout'), next_state.timeout_duration-500+1000*Math.random()
 
           process.nextTick => heal @queuer.on_agent this, notification_data
 
@@ -440,6 +440,7 @@ In `idle` state, the agent is automatically transitioned to `evaluating`.
         logout: 'logged_out'
         evaluate: 'evaluating'
         timeout: 'idle'
+        timeout_duration: 19*seconds
 
 In `waiting` state, the agent is only transitioned on an external event `new_call`.
 
@@ -449,6 +450,11 @@ In `waiting` state, the agent is only transitioned on an external event `new_cal
         end_of_calls: 'idle'
         logout: 'logged_out'
         new_call: 'idle'
+
+Regularly re-assess the situation (this allows to flush the pools).
+
+        timeout: 'idle'
+        timeout_duration: 599*seconds
 
 All other states will re-transition via `idle` first (to force a re-evaluation of the state of the agent).
 
@@ -465,6 +471,7 @@ First we look in the pool of existing ingress calls, then in the pool of existin
         present: 'presenting'
         release: 'create_call'
         timeout: 'idle'
+        timeout_duration: 17*seconds
 
 If no existing (or potential) call exists, we attempt to build a new call.
 
@@ -476,6 +483,7 @@ If no existing (or potential) call exists, we attempt to build a new call.
         created: 'waiting'
         not_created: 'waiting'
         timeout: 'idle'
+        timeout_duration: 71*seconds
 
 ### State: busy
 
@@ -498,6 +506,7 @@ In `away` state, the queuer will trigger a review of all available agents to dis
         login: 'idle'
         logout: 'logged_out'
         timeout: 'idle'
+        timeout_duration: 13*seconds
 
 ### State: presenting
 
