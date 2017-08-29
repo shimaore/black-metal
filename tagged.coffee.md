@@ -30,9 +30,9 @@ Do not make parallel attempts for calls that have no id (outbound calls).
             unless call.id?
               return false
 
-            broadcast = yield call.broadcast()
-            agent_multi = yield @has_tag 'multi'
-            unless broadcast or agent_multi
+            call_broadcast = yield call.broadcast()
+            agent_broadcast = yield @has_tag 'broadcast'
+            unless call_broadcast or agent_broadcast
               debug 'Call is already being handled', call.key, @key
               return false
 
