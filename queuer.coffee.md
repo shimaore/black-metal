@@ -217,12 +217,16 @@ Set the remote call so that `remote_hungup` can do its job.
 
             yield agent.set_remote_call call
 
-            monitor.once 'CHANNEL_HANGUP_COMPLETE', hand =>
+            monitor.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
               debug 'Queuer.__evaluate_agent build_call: caller hung up', agent.key
               monitor?.end()
               monitor = null
               yield call.load()
-              yield call.transition 'hungup'
+              switch body.variable_transfer_disposition
+                when 'recv_replace', 'replaced', 'bridge'
+                  yield call.transition 'transferred'
+                else
+                  yield call.transition 'hungup'
               yield agent.remote_hungup call
               return
 

@@ -44,17 +44,19 @@ Base features
 Monitor other calls for this agent, keeping state.
 
       add_call: seem (id) ->
-        debug 'Agent.add_call', id
+        debug 'Agent.add_call', @key, id
         return unless id?
 
         added = yield @add id
 
         if added
           yield @transition 'start_of_call'
+        else
+          debug 'Agent.add_call: call was already present', @key, id
         null
 
       del_call: seem (id) ->
-        debug 'Agent.del_call', id
+        debug 'Agent.del_call', @key, id
         return unless id?
 
         removed = yield @remove id
@@ -71,7 +73,7 @@ Monitor other calls for this agent, keeping state.
         if removed and count is 0
           yield @transition 'end_of_calls'
         else
-          debug 'Agent.del_call: calls left', count
+          debug 'Agent.del_call: calls left', @key, count
         null
 
 Handle transitions
@@ -149,7 +151,17 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
           call = yield @get_remote_call().catch -> null
           switch body?.variable_transfer_disposition
             when 'recv_replace'
-              yield @transition 'agent_transfer', {call}
+              debug 'Agent.__monitor: REFER To'
+              if yield @transition 'agent_transfer', {call}
+                yield @transferred_remote()
+            when 'replaced'
+              debug 'Agent.__monitor: Attended Transfer on originating session'
+              if yield @transition 'agent_transfer', {call}
+                yield @transferred_remote()
+            when 'bridge'
+              debug 'Agent.__monitor: Attended Transfer'
+              if yield @transition 'agent_transfer', {call}
+                yield @transferred_remote()
             else
               if yield @transition 'agent_hangup', {call}
                 yield @disconnect_remote()
@@ -264,6 +276,12 @@ Notify start of wrapup time to an agent
         if current_call?
           yield @set_remote_call null
           yield current_call.hangup()
+
+      transferred_remote: seem ->
+        debug 'Agent.transferred_remote'
+        current_call = yield @get_remote_call()
+        if current_call?
+          yield @set_remote_call null
 
       remote_hungup: seem (call) ->
         current_call = yield @get_remote_call()

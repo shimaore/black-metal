@@ -394,6 +394,7 @@ If a call is transitioned back to `new` it means it got forgotten / is in overfl
 
       new:
         hangup: 'dropped' # hungup locally
+        transferred: 'dropped' # transferred locally
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
         pool: 'pooled'
@@ -406,6 +407,7 @@ Only pooled calls actually get considered.
         broadcast: 'handled'
         handle: 'handled'
         hangup: 'dropped' # hungup locally
+        transferred: 'dropped' # transferred locally
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
         timeout: 'new'
@@ -417,6 +419,7 @@ Only pooled calls actually get considered.
         broadcast: 'handled'
         fail: 'dropped'
         hangup: 'dropped' # hungup locally
+        transferred: 'dropped' # transferred locally
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
         pool: 'pooled' # force re-try
@@ -430,10 +433,13 @@ This might lead to multiple agents ringing even if the `broadcast` option is not
         attended_transfer: 'dropped'
         blind_transfer: 'dropped'
         hangup: 'dropped' # hungup locally
+        transferred: 'dropped' # transferred locally
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
-        pool: 'pooled' # on transfer, typically
+        pool: 'pooled' # on transfer
+        unpool: 'dropped' # on transfer
 
-      dropped: {}
+      dropped:
+        pool: 'pooled' # on transfer
 
     module.exports = Call
