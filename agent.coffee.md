@@ -433,6 +433,8 @@ An available agent is `idle`, `waiting`, or `pending`. The three states are equi
 
 In `idle` state, the agent is automatically transitioned to `evaluating`.
 
+This state should be short, so if it lasts too long resubmit it.
+
       idle:
 
         start_of_call: 'busy'
@@ -470,6 +472,9 @@ First we look in the pool of existing ingress calls, then in the pool of existin
         logout: 'logged_out'
         present: 'presenting'
         release: 'create_call'
+
+This state should be relatively short, so if it lasts too long resubmit.
+
         timeout: 'idle'
         timeout_duration: 17*seconds
 

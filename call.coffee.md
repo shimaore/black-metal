@@ -389,7 +389,7 @@ Call Transitions
 
     _transition =
 
-If a call is transitioned back to `new` it means it got forgotten.
+If a call is transitioned back to `new` it means it got forgotten / is in overflow.
 
       new:
         hangup: 'dropped' # hungup locally
@@ -397,7 +397,7 @@ If a call is transitioned back to `new` it means it got forgotten.
         miss: 'dropped' # disappeared from system
         pool: 'pooled'
         timeout: 'new' # forgotten
-        timeout_duration: 59*seconds
+        timeout_duration: 97*seconds
 
 Only pooled calls actually get considered.
 
@@ -408,7 +408,7 @@ Only pooled calls actually get considered.
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
         timeout: 'new'
-        timeout_duration: 31*seconds # for overflow
+        timeout_duration: 31*seconds # overflow/forgotten
         unpool: 'new'
 
       handled:
@@ -419,8 +419,11 @@ Only pooled calls actually get considered.
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
         pool: 'pooled' # force re-try
+
+This might lead to multiple agents ringing even if the `broadcast` option is not active, so we delay it a little.
+
         timeout: 'pooled' # force re-try
-        timeout_duration: 67*seconds
+        timeout_duration: 131*seconds
 
       bridged:
         attended_transfer: 'dropped'
@@ -428,7 +431,7 @@ Only pooled calls actually get considered.
         hangup: 'dropped' # hungup locally
         hungup: 'dropped' # hungup by remote end
         miss: 'dropped' # disappeared from system
-        pool: 'pooled' # on transfer
+        pool: 'pooled' # on transfer, typically
 
       dropped: {}
 
