@@ -2,12 +2,8 @@ class Call: a call from or towards a customer
 =====
 
     @name = 'black-metal:call'
-    debug = (require 'tangible') @name
+    {debug,hand,heal} = (require 'tangible') @name
     seem = require 'seem'
-    heal = (p) -> p.catch debug.catch
-    hand = (f) ->
-      F = seem f
-      (args...) -> heal F args...
     Solid = require 'solid-gun'
     RedisClient = require 'normal-key/client'
 

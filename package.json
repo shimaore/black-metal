@@ -29,7 +29,7 @@
     "normal-key": "^3.0.0",
     "seem": "^2.0.0",
     "solid-gun": "^1.0.0",
-    "tangible": "^1.8.3"
+    "tangible": "^1.9.0"
   },
   "publishConfig": {
     "tag": "latest"

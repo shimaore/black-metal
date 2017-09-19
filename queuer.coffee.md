@@ -1,12 +1,8 @@
     @name = 'black-metal:queuer'
     seem = require 'seem'
-    heal = (p) -> p.catch debug.catch
-    hand = (f) ->
-      F = seem f
-      (args...) -> heal F args...
     RedisClient = require 'normal-key/client'
 
-    debug = (require 'tangible') @name
+    {debug,hand,heal} = (require 'tangible') @name
 
     sleep = (timeout) ->
       new Promise (resolve) ->
