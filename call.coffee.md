@@ -1,4 +1,4 @@
-class Call: a call from or towards a customer
+class Call: a call from or towards a customer or agent
 =====
 
     @name = 'black-metal:call'
@@ -283,10 +283,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
         yield @api "uuid_break #{@id}"
         yield @api "uuid_broadcast #{agent_call.id} gentones::%(100,20,400);%(100,0,600) aleg"
         yield sleep 400
-        if yield @api "uuid_bridge #{@id} #{agent_call.id}"
-          yield @transition 'bridge', {agent_call}
-        else
-          false
+        yield @api "uuid_bridge #{@id} #{agent_call.id}"
 
 Remove all the matched calls, except maybe one.
 
@@ -325,7 +322,7 @@ with the gentones notifications.
         yield @transition 'hangup'
 
       monitor: (events...) ->
-        debug 'Call.monitor', @id
+        debug 'Call.monitor', @id, events
         return null unless @id?
         @monitor_api @id, events
 
@@ -386,12 +383,20 @@ Call Transitions
 
     _transition =
 
+Events:
+- fail
+- pool
+- unpool
+- hangup
+- bridge
+- unbridge
+- broadcast
+- handle
+
 If a call is transitioned back to `new` it means it got forgotten / is in overflow.
 
       new:
-        hangup: 'dropped' # hungup locally
-        transferred: 'dropped' # transferred locally
-        hungup: 'dropped' # hungup by remote end
+        hangup: 'dropped'
         miss: 'dropped' # disappeared from system
         pool: 'pooled'
         timeout: 'new' # forgotten
@@ -402,9 +407,7 @@ Only pooled calls actually get considered.
       pooled:
         broadcast: 'handled'
         handle: 'handled'
-        hangup: 'dropped' # hungup locally
-        transferred: 'dropped' # transferred locally
-        hungup: 'dropped' # hungup by remote end
+        hangup: 'dropped'
         miss: 'dropped' # disappeared from system
         timeout: 'new'
         timeout_duration: 31*seconds # overflow/forgotten
@@ -414,9 +417,7 @@ Only pooled calls actually get considered.
         bridge: 'bridged'
         broadcast: 'handled'
         fail: 'dropped'
-        hangup: 'dropped' # hungup locally
-        transferred: 'dropped' # transferred locally
-        hungup: 'dropped' # hungup by remote end
+        hangup: 'dropped'
         miss: 'dropped' # disappeared from system
         pool: 'pooled' # force re-try
 
@@ -426,14 +427,18 @@ This might lead to multiple agents ringing even if the `broadcast` option is not
         timeout_duration: 131*seconds
 
       bridged:
-        attended_transfer: 'dropped'
-        blind_transfer: 'dropped'
-        hangup: 'dropped' # hungup locally
-        transferred: 'dropped' # transferred locally
-        hungup: 'dropped' # hungup by remote end
+        hangup: 'dropped'
         miss: 'dropped' # disappeared from system
-        pool: 'pooled' # on transfer
-        unpool: 'dropped' # on transfer
+        pool: 'pooled'
+        unbridge: 'unbridged'
+
+      unbridged:
+        hangup: 'dropped'
+        miss: 'dropped' # disappeared from system
+        bridge: 'bridged'
+        pool: 'pooled'
+        timeout: 'pooled' # forgotten
+        timeout_duration: 31*seconds
 
       dropped:
         pool: 'pooled' # on transfer

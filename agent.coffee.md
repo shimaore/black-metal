@@ -9,6 +9,10 @@ Agent
     seconds = 1000
     minutes = 60*seconds
 
+    sleep = (timeout) ->
+      new Promise (resolve) ->
+        setTimeout resolve, timeout
+
     class Agent extends RedisClient
 
       constructor: (@queuer,key) ->
@@ -37,7 +41,8 @@ This is meant to be defined in a sub-calls.
 Base features
 -------------
 
-Monitor other calls for this agent, keeping state.
+Monitor calls for this agent, keeping state so that we can decide whether the agent is busy or not.
+(The `id` always refers to the agent's channel, not the remote end.)
 
       add_call: seem (id) ->
         debug 'Agent.add_call', @key, id
@@ -59,9 +64,16 @@ Monitor other calls for this agent, keeping state.
 
         offhook_call = yield @get_offhook_call()
         if offhook_call? and id is offhook_call.id
-          debug 'Agent.del_call: logout for offhook agent call'
+          debug 'Agent.del_call: logout (for offhook agent call)'
           yield @set_offhook_call null
           yield @transition 'logout'
+          return
+
+        remote_call = yield @get_remote_call()
+        if remote_call? and id is remote_call.id
+          debug 'Agent.del_call: hangup (for remote call)'
+          yield @clear_call remote_call
+          yield @transition 'hangup', call:remote_call
           return
 
         count = yield @count()
@@ -74,6 +86,18 @@ Monitor other calls for this agent, keeping state.
 
 Handle transitions
 ------------------
+
+      lock: seem ->
+        offset = Math.ceil 1000000 * Math.random()
+
+        yield sleep 20 * Math.random()
+
+        count = 7
+        while count-- > 0
+          before = yield @incr 'lock', offset
+          return yes if before is offset
+          yield sleep 20 * Math.random()
+        return no
 
       transition: seem (event, notification_data = {}) ->
         debug 'Agent.transition', {agent: @key, event}
@@ -102,6 +126,8 @@ Handle transitions
         debug 'Agent.transition', {agent: @key, event, old_state, new_state}
         if new_state?
           yield @set_state new_state
+
+          yield @reset 'lock'
 
           notification_data.old_state = old_state
           notification_data.state = new_state
@@ -133,34 +159,66 @@ Handle transitions
 Actively monitor the call between the queuer and an agent (could be an off-hook or an on-hook call).
 
       __monitor: seem (agent_call) ->
-        debug 'Agent._monitor', @key
+        debug 'Agent.__monitor', @key, agent_call?.key
 
         return unless agent_call?
 
-        monitor = yield agent_call.monitor 'CHANNEL_HANGUP_COMPLETE', 'DTMF'
+        monitor = yield agent_call.monitor 'CHANNEL_HANGUP_COMPLETE', 'DTMF', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE'
+
+Hangup on agent call (agent can be called or callee).
 
         monitor?.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
-          debug 'Agent.__monitor: channel hangup complete', @key
+          disposition = body?.variable_transfer_disposition
+          debug 'Agent.__monitor: CHANNEL_HANGUP_COMPLETE', @key, agent_call.key, disposition
           monitor?.end()
           monitor = null
           yield @set_onhook_call null
           call = yield @get_remote_call().catch -> null
-          switch body?.variable_transfer_disposition
-            when 'recv_replace'
-              debug 'Agent.__monitor: REFER To'
+          switch disposition
+            when 'recv_replace', 'bridge'
               if yield @transition 'agent_transfer', {call}
-                yield @transferred_remote()
+                yield @clear_call call
             when 'replaced'
-              debug 'Agent.__monitor: Attended Transfer on originating session'
-              if yield @transition 'agent_transfer', {call}
-                yield @transferred_remote()
-            when 'bridge'
-              debug 'Agent.__monitor: Attended Transfer'
-              if yield @transition 'agent_transfer', {call}
-                yield @transferred_remote()
+              true
             else
               if yield @transition 'agent_hangup', {call}
                 yield @disconnect_remote()
+          return
+
+Bridge on agent call (calling or called).
+
+        monitor?.on 'CHANNEL_BRIDGE', hand ({body}) =>
+          a_uuid = body['Bridge-A-Unique-ID']
+          b_uuid = body['Bridge-B-Unique-ID']
+          debug 'Agent.__monitor: CHANNEL_BRIDGE', key, a_uuid, b_uuid
+
+          yield @queuer.track @key, a_uuid
+          yield @queuer.on_bridge a_uuid
+
+          remote_call = @new_call id:b_uuid
+          yield remote_call.load()
+          yield @transition 'bridge', call:remote_call
+
+          return
+
+Unbridge on agent call (calling or called).
+
+        monitor?.on 'CHANNEL_UNBRIDGE', hand ({body}) =>
+          a_uuid = body['Bridge-A-Unique-ID']
+          b_uuid = body['Bridge-B-Unique-ID']
+          disposition = body.variable_transfer_disposition
+          debug 'Agent.__monitor: CHANNEL_UNBRIDGE', key, a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
+
+          if disposition is 'replaced' # and body.variable_endpoint_disposition is 'ATTENDED_TRANSFER'
+            yield @queuer.track @key, b_uuid
+
+          yield @queuer.on_unbridge a_uuid
+          yield @queuer.untrack @key, a_uuid
+
+          remote_call = @new_call id:b_uuid
+          yield remote_call.load()
+          yield @transition 'unbridge', call:remote_call
+
           return
 
         monitor?.on 'DTMF', hand ({body}) =>
@@ -187,11 +245,13 @@ Start of an off-hook session for the agent (used by huge-play)
 Attempt to transition to login with the call-id.
 
         agent_call = @new_call id: call_uuid
+        yield agent_call.load()
         unless yield @__monitor agent_call
           yield heal agent_call.hangup()
           return null
 
         yield agent_call.save()
+        yield @queuer.track @key, agent_call.id
         yield @set_offhook_call agent_call
         unless yield @transition 'login'
           debug 'Agent.accept_offhook transition failed, hanging up'
@@ -226,6 +286,7 @@ For on-hook we need to call the agent.
 
         agent_call = @new_call destination: @key
         yield agent_call.save()
+        yield @queuer.track @key, agent_call.id
         agent_call = yield agent_call.originate_internal caller
         unless agent_call?
           return null
@@ -270,20 +331,13 @@ Notify start of wrapup time to an agent
         debug 'Agent.disconnect_remote'
         current_call = yield @get_remote_call()
         if current_call?
-          yield @set_remote_call null
           yield current_call.hangup()
+          yield @clear_call current_call
 
-      transferred_remote: seem ->
-        debug 'Agent.transferred_remote'
-        current_call = yield @get_remote_call()
-        if current_call?
-          yield @set_remote_call null
-
-      remote_hungup: seem (call) ->
-        current_call = yield @get_remote_call()
-        if current_call.key is call.key
-          yield @set_remote_call null
-          yield @transition 'hangup', {call}
+      clear_call: seem (call) ->
+        return unless call?
+        yield @queuer.untrack @key, call.id
+        yield @set_remote_call null
 
 Tools
 -----
@@ -551,6 +605,7 @@ Upon transitioning to the presenting state:
       in_call:
 
         hangup: 'wrap_up'
+        unbridge: 'wrap_up'
         force_hangup: 'wrap_up'
         agent_hangup: 'idle'
         agent_transfer: 'idle'
@@ -563,6 +618,7 @@ Upon transitioning to the presenting state:
 
         complete: 'idle'
         agent_hangup: 'idle'
+        agent_transfer: 'idle' # in case the 'hangup' event arrives first
 
         logout: 'logged_out'
 
