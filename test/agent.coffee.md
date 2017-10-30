@@ -31,14 +31,14 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
           else
             null
 
-      api = (cmd) ->
-        debug 'api', cmd
+      api_truthy = (cmd) ->
+        debug 'api.truthy', cmd
         if cmd.match /^uuid_exists/
           return Promise.resolve 'true'
         Promise.resolve true
 
-      monitor_api = (id,events) ->
-        debug 'monitor_api'
+      api_monitor = (id,events) ->
+        debug 'api.monitor'
         return
           once: ->
           on: ->
@@ -54,8 +54,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
 
       class TestCall extends require '../call'
         interface: redis_interface
-        api: api
-        monitor_api: monitor_api
+        __api: truthy: api_truthy, monitor: api_monitor
         profile: profile
         Reference: Reference
 

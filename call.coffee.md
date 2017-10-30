@@ -28,10 +28,13 @@ Keep these under the shortest state-machine timer, currently 59s.
 
     class Call extends RedisClient
 
-The following two methods MUST be provided by an implementation class:
+The following field MUST be provided by an implementation class.
+It should implement features similar to the ones found in the `api` object of `huge-play/middleware/setup`.
+(Currently we rely on `api.truthy`, `api.monitor`, and `api.send`.)
 
-      api: (cmd) -> throw new Error 'Call.api is not implemented.'
-      monitor_api: (id,events) -> throw new Error 'Call.monitor_api is not implemented'
+      __api: null
+
+      api: (args...) -> @__api.truthy args...
 
       constructor: (@queuer,{@destination,@id,key}) ->
         throw new Error 'Call requires queuer' unless @queuer?
@@ -324,7 +327,7 @@ with the gentones notifications.
       monitor: (events...) ->
         debug 'Call.monitor', @id, events
         return null unless @id?
-        @monitor_api @id, events
+        @__api.monitor @id, events
 
       announce: seem (file) ->
         debug 'Call.announce', @id, file
