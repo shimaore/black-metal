@@ -151,8 +151,6 @@ Routing or ringing (for a call outside the queuer).
 
 When two calls are bridged, we track the call under the agent. This allows to track agent busy state based on transfered calls.
 
-For `on_bridge`, both calls are required.
-
         on_bridge: seem ( agent_call_id ) ->
 
           debug 'Queuer.on_bridge', agent_call_id
@@ -165,8 +163,6 @@ For `on_bridge`, both calls are required.
             yield agent.add_call agent_call_id
 
           return
-
-For `on_unbridge`, the remote call might be missing (in case of an attended transfer for which the agent is the receiver).
 
         on_unbridge: seem ( agent_call_id ) ->
 
@@ -441,12 +437,14 @@ No call
             debug 'Queuer.__transition_available_agents for agent', {agent: agent.key, event}
             agent.transition event
 
-        create_egress_call_for: seem (agent) ->
-          debug 'Queuer.create_egress_call_for', agent.key
+Data is optional but is used by huge-play's `create-queuer-call`.
+
+        create_egress_call_for: seem (agent,data) ->
+          debug 'Queuer.create_egress_call_for', agent.key, data
 
 The call instance is created using data found e.g. in a database, the (egress) call is placed in the pool, and the idle agents are re-evaluated.
 
-          call = yield agent.create_egress_call()
+          call = yield agent.create_egress_call data
           if call?
             debug 'Queuer.create_egress_call_for: queue egress call', agent.key, call.key
             yield agent.transition 'created'
