@@ -312,6 +312,7 @@ with the gentones notifications.
 
       wrapup: seem ->
         debug 'Call.wrapup', @id
+        yield sleep 400
         yield @api "uuid_broadcast #{@id} gentones::%(100,20,600);%(100,0,400) aleg"
         yield sleep 400
 
