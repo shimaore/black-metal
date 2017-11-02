@@ -48,9 +48,20 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
         debug 'Agent.add_call', @key, id
         return unless id?
 
+        onhook_call = yield @get_onhook_call()
+        if onhook_call? and id is onhook_call.id
+          debug 'Agent.add_call: onhook agent connected (ignored)'
+          return
+
+        offhook_call = yield @get_offhook_call()
+        if offhook_call? and id is offhook_call.id
+          debug 'Agent.add_call: offhook agent connected (ignored)'
+          return
+
         added = yield @add id
 
         if added
+          debug 'Agent.add_call: added new call', @key, id
           yield @transition 'start_of_call'
         else
           debug 'Agent.add_call: call was already present', @key, id
@@ -61,6 +72,13 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
         return unless id?
 
         removed = yield @remove id
+
+        onhook_call = yield @get_onhook_call()
+        if onhook_call? and id is onhook_call.id
+          debug 'Agent.del_call: agent_hangup (for onhook agent call)'
+          yield @set_onhook_call null
+          yield @transition 'agent_hangup'
+          return
 
         offhook_call = yield @get_offhook_call()
         if offhook_call? and id is offhook_call.id
@@ -79,6 +97,7 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
         count = yield @count()
 
         if removed and count is 0
+          debug 'Agent.del_call: last call was removed', @key, count
           yield @transition 'end_of_calls'
         else
           debug 'Agent.del_call: calls left', @key, count
@@ -457,8 +476,7 @@ The `hangup` event is triggered:
 ### Event: agent_hangup
 
 The `agent_hangup` event is triggered:
-- if the agent
-  - mode B: hangs up the call with the queuer
+- if the agent hangs up the call with the queuer
 
 ### Event: complete
 
