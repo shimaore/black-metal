@@ -73,13 +73,6 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
 
         removed = yield @remove id
 
-        onhook_call = yield @get_onhook_call()
-        if onhook_call? and id is onhook_call.id
-          debug 'Agent.del_call: agent_hangup (for onhook agent call)'
-          yield @set_onhook_call null
-          yield @transition 'agent_hangup'
-          return
-
         offhook_call = yield @get_offhook_call()
         if offhook_call? and id is offhook_call.id
           debug 'Agent.del_call: logout (for offhook agent call)'
@@ -92,6 +85,12 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
           debug 'Agent.del_call: hangup (for remote call)'
           yield @clear_call remote_call
           yield @transition 'hangup', call:remote_call
+          return
+
+        onhook_call = yield @get_onhook_call()
+        if onhook_call? and id is onhook_call.id
+          debug 'Agent.del_call: hangup (for onhook agent call)'
+          yield @transition 'hangup'
           return
 
         count = yield @count()
