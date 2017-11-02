@@ -190,6 +190,7 @@ Hangup on agent call (agent can be called or callee).
           debug 'Agent.__monitor: CHANNEL_HANGUP_COMPLETE', @key, agent_call.key, disposition
           monitor?.end()
           monitor = null
+
           yield @set_onhook_call null
           call = yield @get_remote_call().catch -> null
           switch disposition
@@ -210,11 +211,9 @@ Bridge on agent call (calling or called).
           b_uuid = body['Bridge-B-Unique-ID']
           debug 'Agent.__monitor: CHANNEL_BRIDGE', key, a_uuid, b_uuid
 
-          yield @queuer.track @key, a_uuid
-          yield @queuer.on_bridge a_uuid
-
           remote_call = @new_call id:b_uuid
           yield remote_call.load()
+          yield remote_call.set_agent @key
           yield @transition 'bridge', call:remote_call
 
           return
@@ -227,15 +226,15 @@ Unbridge on agent call (calling or called).
           disposition = body.variable_transfer_disposition
           debug 'Agent.__monitor: CHANNEL_UNBRIDGE', key, a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
 
-          if disposition is 'replaced' # and body.variable_endpoint_disposition is 'ATTENDED_TRANSFER'
-            yield @queuer.track @key, b_uuid
-
-          yield @queuer.on_unbridge a_uuid
-          yield @queuer.untrack @key, a_uuid
-
           remote_call = @new_call id:b_uuid
           yield remote_call.load()
-          yield @transition 'unbridge', call:remote_call
+
+          if disposition is 'replaced'
+            # expect body.variable_endpoint_disposition is 'ATTENDED_TRANSFER'
+            yield remote_call.set_agent @key
+            # yield other_agent.transition 'bridge', call:remote_call
+          else
+            yield @transition 'unbridge', call:remote_call
 
           return
 
@@ -269,7 +268,7 @@ Attempt to transition to login with the call-id.
           return null
 
         yield agent_call.save()
-        yield @queuer.track @key, agent_call.id
+        yield agent_call.set_agent @key
         yield @set_offhook_call agent_call
         unless yield @transition 'login'
           debug 'Agent.accept_offhook transition failed, hanging up'
@@ -304,7 +303,7 @@ For on-hook we need to call the agent.
 
         agent_call = @new_call destination: @key
         yield agent_call.save()
-        yield @queuer.track @key, agent_call.id
+        yield agent_call.set_agent @key
         agent_call = yield agent_call.originate_internal caller
         unless agent_call?
           return null
@@ -354,7 +353,7 @@ Notify start of wrapup time to an agent
 
       clear_call: seem (call) ->
         return unless call?
-        yield @queuer.untrack @key, call.id
+        yield call.set_agent null
         yield @set_remote_call null
 
 Tools

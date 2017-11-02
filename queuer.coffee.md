@@ -106,6 +106,9 @@ For a given agent, their pool of ingress-calls-to-handle is therefor a subset of
 
       class Queuer
 
+        Call: Call
+        Agent: Agent
+
         constructor: ->
           debug 'new Queuer'
           @ingress_pool = new CallPool this, 'ingress'
@@ -113,72 +116,17 @@ For a given agent, their pool of ingress-calls-to-handle is therefor a subset of
           @available_agents = new AgentPool this, 'available'
           @__timers = {}
 
-Track Calls
------------
+Monitor a call
+---------------------
 
-Keep a mapping of call.id → agent.key.
+        monitor_remote_call: (remote_call) ->
+          @monitor_call remote_call, 'remote_call', 'agent_call'
 
-        track: (agent_key,call_id) ->
-          debug 'Queuer.track', agent_key, call_id
-          redis_interface.add "CS:#{call_id}", agent_key
+        monitor_local_call: (agent_call) ->
+          @monitor_call agent_call, 'agent_call', 'remote_call'
 
-        untrack: (agent_key,call_id) ->
-          debug 'Queuer.untrack', agent_key, call_id
-          redis_interface.remove "CS:#{call_id}", agent_key
-
-        tracked: (call_id) ->
-          debug 'Queuer.tracked', call_id
-          redis_interface.members "CS:#{call_id}"
-
-        clear_tracks: (call_id) ->
-          debug 'Queuer.clear_tracks', call_id
-          redis_interface.clear "CS:#{call_id}"
-
-Routing or ringing (for a call outside the queuer).
-
-        on_present: seem ( agent_call_id ) ->
-
-          debug 'Queuer.on_present', agent_call_id
-
-          agent_keys = yield @tracked agent_call_id
-          debug 'Queuer.on_present agent_keys', agent_keys, agent_call_id
-
-          for key in agent_keys
-            agent = new Agent this, key
-            yield agent.add_call agent_call_id
-
-          return
-
-When two calls are bridged, we track the call under the agent. This allows to track agent busy state based on transfered calls.
-
-        on_bridge: seem ( agent_call_id ) ->
-
-          debug 'Queuer.on_bridge', agent_call_id
-
-          agent_keys = yield @tracked agent_call_id
-          debug 'Queuer.on_bridge agent_keys', agent_keys, agent_call_id
-
-          for key in agent_keys
-            agent = new Agent this, key
-            yield agent.add_call agent_call_id
-
-          return
-
-        on_unbridge: seem ( agent_call_id ) ->
-
-          debug 'Queuer.on_unbridge', agent_call_id
-
-          agent_keys = yield @tracked agent_call_id
-          debug 'Queuer.on_unbridge agent_keys', agent_keys, agent_call_id
-
-          for key in agent_keys
-            agent = new Agent this, key
-            yield agent.del_call agent_call_id
-
-          return
-
-        monitor_remote_call: seem (call,options) ->
-          debug 'Queuer.monitor_remote_call', call.key
+        monitor_call: seem (call,my_name,their_name) ->
+          debug 'Queuer.monitor_call', call.key
 
 Avoid creating multiple monitors for a single call.
 
@@ -186,44 +134,58 @@ Avoid creating multiple monitors for a single call.
           return unless yield redis_interface.redis.set lock, 1, 'nx', 'ex', 8*3600
           monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE'
 
-Hangup on non-agent call (callee or called).
-
           monitor.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
-            debug 'Queuer.monitor_remote_call: CHANNEL_HANGUP_COMPLETE', call.key
+            debug 'Queuer.monitor_call: CHANNEL_HANGUP_COMPLETE', call.key
             heal redis_interface.redis.del lock
             heal monitor?.end()
             monitor = null
+
             yield call.load()
+
+            agent_key = yield call.get_agent()
+            if agent_key?
+              agent = new Agent this, agent_key
+              yield agent.del_call call.id
+
             yield call.transition 'hangup'
             return
 
           monitor.on 'CHANNEL_BRIDGE', hand ({body}) =>
             a_uuid = body['Bridge-A-Unique-ID']
             b_uuid = body['Bridge-B-Unique-ID']
-            debug 'Queuer.monitor_remote_call: CHANNEL_BRIDGE', a_uuid, b_uuid
+            disposition = body?.variable_transfer_disposition
+            debug 'Queuer.monitor_call: CHANNEL_BRIDGE', a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
 
-            agent_call = new Call this, id:b_uuid
-            yield agent_call.load()
-            yield call.transition 'bridge', {agent_call}
+            yield call.load()
 
-            yield @on_bridge b_uuid
+            their_call = new Call this, id:b_uuid
+            yield their_call.load()
+
+            yield call.transition 'bridge', "#{their_name}": their_call
+            yield their_call.transition 'bridge', "#{my_name}": call
             return
 
           monitor.on 'CHANNEL_UNBRIDGE', hand ({body}) =>
             a_uuid = body['Bridge-A-Unique-ID']
             b_uuid = body['Bridge-B-Unique-ID']
             disposition = body?.variable_transfer_disposition
-            debug 'Queuer.monitor_remote_call: CHANNEL_UNBRIDGE', a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
+            debug 'Queuer.monitor_call: CHANNEL_UNBRIDGE', a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
 
-            agent_call = new Call this, id:b_uuid
-            yield agent_call.load()
-            yield call.transition 'unbridge', {agent_call}
+            yield call.load()
 
-            yield @on_unbridge b_uuid
+            agent_key = yield call.get_agent()
+            if agent_key?
+              agent = new Agent this, agent_key
+              yield agent.del_call call.id
+
+            their_call = new Call this, id:b_uuid
+            yield their_call.load()
+
+            yield call.transition 'unbridge', "#{their_name}": their_call
+            yield their_call.transition 'unbridge', "#{my_name}": call
             return
 
           return
-
 
 Evaluate Agent
 --------------
@@ -349,12 +311,11 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             debug 'Queuer.__evaluate_agent send_to_agent: bridge', agent.key, call.key
 
-            yield @track agent.key, agent_call.id
+            yield agent_call.set_agent agent.key
             unless yield call.bridge agent_call
               yield heal call.remove agent_call.id # undo what was done in `call.originate_internal`
               yield agent.set_remote_call null
               yield agent_call.hangup()
-              yield @untrack agent.key, agent_call.id
               yield agent.transition 'failed', {call}
               return false
 
@@ -501,7 +462,6 @@ If the agent is idle, move forward in the background.
             when 'bridged'
               yield @ingress_pool.remove call
               yield @egress_pool.remove call
-
 
               if data.agent_call?
 

@@ -380,6 +380,12 @@ with the gentones notifications.
       get_music: ->
         @get 'music'
 
+      set_agent: (agent) ->
+        @set 'agent', agent
+
+      get_agent: ->
+        @get 'agent'
+
 Call Transitions
 ----------------
 
