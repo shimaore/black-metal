@@ -465,18 +465,20 @@ If the agent is idle, move forward in the background.
 
               if data.agent_call?
 
-Do not automatically close the agent's call (in `dropped`) when a remote party hangs up.
-
-                yield call.remove data.agent_call.key
-
 Hang up all other (ringing) agents.
 
                 yield call.unbridge_except data.agent_call.key
+
+Do not automatically close the agent's call (in `dropped`) when a remote party hangs up.
+
+              yield call.clear()
 
             when 'dropped'
               yield @ingress_pool.remove call
               yield @egress_pool.remove call
               yield call.unbridge_except()
+
+          return
 
         clear_timer: (key) ->
           if @__timers[key]?
