@@ -135,12 +135,16 @@ Avoid creating multiple monitors for a single call.
           monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE'
 
           monitor.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
-            debug 'Queuer.monitor_call: CHANNEL_HANGUP_COMPLETE', call.key
+            disposition = body?.variable_transfer_disposition
+            debug 'Queuer.monitor_call: CHANNEL_HANGUP_COMPLETE', call.key, disposition, body.variable_endpoint_disposition
+
             heal redis_interface.redis.del lock
             heal monitor?.end()
             monitor = null
 
             yield call.load()
+            if disposition is 'replaced'
+              yield call.clear()
 
             agent_key = yield call.get_agent()
             if agent_key?
@@ -172,6 +176,8 @@ Avoid creating multiple monitors for a single call.
             debug 'Queuer.monitor_call: CHANNEL_UNBRIDGE', a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
 
             yield call.load()
+            if disposition is 'replaced'
+              yield call.clear()
 
             agent_key = yield call.get_agent()
             if agent_key?
