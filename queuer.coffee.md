@@ -120,12 +120,18 @@ Monitor a call
 ---------------------
 
         monitor_remote_call: (remote_call) ->
-          @monitor_call remote_call, 'remote_call', 'agent_call'
+          @monitor_call remote_call, 'remote_call', 'agent_call', (disposition) ->
+            switch disposition
+              when 'recv_replace', 'replaced', 'bridge'
+                'transferred'
+              else
+                'hungup'
 
         monitor_local_call: (agent_call) ->
-          @monitor_call agent_call, 'agent_call', 'remote_call'
+          @monitor_call agent_call, 'agent_call', 'remote_call', (disposition) ->
+            'hangup'
 
-        monitor_call: seem (call,my_name,their_name) ->
+        monitor_call: seem (call,my_name,their_name,hangup_event) ->
           debug 'Queuer.monitor_call', call.key
 
 Avoid creating multiple monitors for a single call.
@@ -151,7 +157,8 @@ Avoid creating multiple monitors for a single call.
               agent = new Agent this, agent_key
               yield agent.del_call call.id
 
-            yield call.transition 'hangup'
+            yield call.transition hangup_event disposition
+
             return
 
           monitor.on 'CHANNEL_BRIDGE', hand ({body}) =>

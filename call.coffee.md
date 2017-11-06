@@ -397,7 +397,10 @@ Events:
 - fail
 - pool
 - unpool
-- hangup
+- hangup: local call, hungup locally
+- transferred: remote call, transferred locally
+- hungup: remote call, hungup by remote end
+- miss : disappeared from system
 - bridge
 - unbridge
 - broadcast
@@ -407,6 +410,8 @@ If a call is transitioned back to `new` it means it got forgotten / is in overfl
 
       new:
         hangup: 'dropped'
+        transferred: 'dropped'
+        hungup: 'dropped'
         miss: 'dropped' # disappeared from system
         pool: 'pooled'
         timeout: 'new' # forgotten
@@ -418,6 +423,8 @@ Only pooled calls actually get considered.
         broadcast: 'handled'
         handle: 'handled'
         hangup: 'dropped'
+        transferred: 'dropped'
+        hungup: 'dropped'
         miss: 'dropped' # disappeared from system
         timeout: 'new'
         timeout_duration: 31*seconds # overflow/forgotten
@@ -428,6 +435,8 @@ Only pooled calls actually get considered.
         broadcast: 'handled'
         fail: 'dropped'
         hangup: 'dropped'
+        transferred: 'dropped'
+        hungup: 'dropped'
         miss: 'dropped' # disappeared from system
         pool: 'pooled' # force re-try
 
@@ -438,12 +447,16 @@ This might lead to multiple agents ringing even if the `broadcast` option is not
 
       bridged:
         hangup: 'dropped'
+        transferred: 'dropped'
+        hungup: 'dropped'
         miss: 'dropped' # disappeared from system
         pool: 'pooled'
         unbridge: 'unbridged'
 
       unbridged:
         hangup: 'dropped'
+        transferred: 'dropped'
+        hungup: 'dropped'
         miss: 'dropped' # disappeared from system
         bridge: 'bridged'
         pool: 'pooled'
