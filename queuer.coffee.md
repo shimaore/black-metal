@@ -136,17 +136,12 @@ Monitor a call
         monitor_call: seem (call,my_name,their_name,hangup_event) ->
           debug 'Queuer.monitor_call', call.key
 
-Avoid creating multiple monitors for a single call.
-
-          lock = "monitor:#{call.key}"
-          return unless yield redis_interface.redis.set lock, 1, 'nx', 'ex', 8*3600
           monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE'
 
           monitor.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
             disposition = body?.variable_transfer_disposition
             debug 'Queuer.monitor_call: CHANNEL_HANGUP_COMPLETE', call.key, disposition, body.variable_endpoint_disposition
 
-            heal redis_interface.redis.del lock
             heal monitor?.end()
             monitor = null
 
