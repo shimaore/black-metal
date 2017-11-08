@@ -232,7 +232,6 @@ Unbridge on agent call (calling or called).
           if disposition is 'replaced'
             # expect body.variable_endpoint_disposition is 'ATTENDED_TRANSFER'
             yield remote_call.set_agent @key
-            # yield other_agent.transition 'bridge', call:remote_call
           else
             yield @transition 'unbridge', call:remote_call
 

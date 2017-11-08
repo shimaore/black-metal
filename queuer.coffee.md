@@ -120,6 +120,7 @@ Monitor a call
 ---------------------
 
         monitor_remote_call: (remote_call) ->
+          debug 'Queuer.monitor_remote_call', remote_call.key
           @monitor_call remote_call, 'remote_call', 'agent_call', (disposition) ->
             switch disposition
               when 'recv_replace', 'replaced', 'bridge'
@@ -128,6 +129,7 @@ Monitor a call
                 'hungup'
 
         monitor_local_call: (agent_call) ->
+          debug 'Queuer.monitor_local_call', agent_call.key
           @monitor_call agent_call, 'agent_call', 'remote_call', (disposition) ->
             'hangup'
 
@@ -401,7 +403,7 @@ No call
             yield agent.park()
 
         queue_ingress_call: seem (call) ->
-          debug 'Queuer.queue_ingress_call'
+          debug 'Queuer.queue_ingress_call', call.key
           yield @monitor_remote_call call
           yield @ingress_pool.add call
 
