@@ -84,7 +84,8 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
         if remote_call? and id is remote_call.id
           debug 'Agent.del_call: hangup (for remote call)', @key, id, disposition
           yield @clear_call remote_call
-          yield @transition 'hangup', call:remote_call
+          if disposition isnt 'replaced'
+            yield @transition 'hangup', call:remote_call
           return
 
         onhook_call = yield @get_onhook_call()
@@ -171,7 +172,7 @@ Handle transitions
         if offhook_call?
           debug 'Agent.__hangup_offhook', offhook_call.key
           yield offhook_call.hangup()
-          yield @del_call offhook_call.id
+          yield @del_call offhook_call.id, 'hangup_offhook'
         offhook_call = null
 
 Actively monitor the call between the queuer and an agent (could be an off-hook or an on-hook call).
@@ -255,7 +256,7 @@ Start of an off-hook session for the agent (used by huge-play)
 
       accept_offhook: seem (call_uuid) ->
         debug 'Agent.accept_offhook', call_uuid
-        yield @del_call call_uuid
+        yield @del_call call_uuid, 'accept_offhook'
         yield @__hangup_offhook()
 
 Attempt to transition to login with the call-id.

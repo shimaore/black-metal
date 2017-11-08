@@ -152,7 +152,7 @@ Monitor a call
             agent_key = yield call.get_agent()
             if agent_key?
               agent = new Agent this, agent_key
-              yield agent.del_call call.id
+              yield agent.del_call call.id, disposition
 
             yield call.transition hangup_event disposition
 
@@ -186,7 +186,7 @@ Monitor a call
             agent_key = yield call.get_agent()
             if agent_key?
               agent = new Agent this, agent_key
-              yield agent.del_call call.id
+              yield agent.del_call call.id, disposition
 
             their_call = new Call this, id:b_uuid
             yield their_call.load()
