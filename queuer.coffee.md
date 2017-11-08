@@ -478,6 +478,8 @@ If the agent is idle, move forward in the background.
 
               if data.agent_call?
 
+                yield call.set_answered()
+
 Hang up all other (ringing) agents.
 
                 yield call.unbridge_except data.agent_call.key

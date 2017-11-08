@@ -344,8 +344,11 @@ with the gentones notifications.
       set_state: (state) ->
         @set 'state', state
 
-      bridged: seem ->
-        'bridged' is yield @state()
+      answered: ->
+        @get 'answered'
+
+      set_answered: ->
+        @set 'answered', true
 
       broadcast: ->
         @has_tag 'broadcast'
