@@ -334,6 +334,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
               return false
 
             debug 'Queuer.__evaluate_agent send_to_agent: Successfully bridged', agent.key, call.key, call.id, agent_call.key
+            yield call.set_agent agent.key
             yield agent.transition 'answer', {call}
 
 ### Main body for `__evaluate_agent`
