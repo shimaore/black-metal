@@ -417,6 +417,7 @@ If a call is transitioned back to `new` it means it got forgotten / is in overfl
         hungup: 'dropped'
         miss: 'dropped' # disappeared from system
         pool: 'pooled'
+        handle: 'handled'
         timeout: 'new' # forgotten
         timeout_duration: 97*seconds
 
