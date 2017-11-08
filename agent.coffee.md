@@ -50,12 +50,12 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
 
         onhook_call = yield @get_onhook_call()
         if onhook_call? and id is onhook_call.id
-          debug 'Agent.add_call: onhook agent connected (ignored)'
+          debug 'Agent.add_call: onhook agent connected (ignored)', @key, id
           return
 
         offhook_call = yield @get_offhook_call()
         if offhook_call? and id is offhook_call.id
-          debug 'Agent.add_call: offhook agent connected (ignored)'
+          debug 'Agent.add_call: offhook agent connected (ignored)', @key, id
           return
 
         added = yield @add id
@@ -67,39 +67,39 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
           debug 'Agent.add_call: call was already present', @key, id
         null
 
-      del_call: seem (id) ->
-        debug 'Agent.del_call', @key, id
+      del_call: seem (id,disposition) ->
+        debug 'Agent.del_call', @key, id, disposition
         return unless id?
 
         removed = yield @remove id
 
         offhook_call = yield @get_offhook_call()
         if offhook_call? and id is offhook_call.id
-          debug 'Agent.del_call: logout (for offhook agent call)'
+          debug 'Agent.del_call: logout (for offhook agent call)', @key, id, disposition
           yield @set_offhook_call null
           yield @transition 'logout'
           return
 
         remote_call = yield @get_remote_call()
         if remote_call? and id is remote_call.id
-          debug 'Agent.del_call: hangup (for remote call)'
+          debug 'Agent.del_call: hangup (for remote call)', @key, id, disposition
           yield @clear_call remote_call
           yield @transition 'hangup', call:remote_call
           return
 
         onhook_call = yield @get_onhook_call()
         if onhook_call? and id is onhook_call.id
-          debug 'Agent.del_call: hangup (for onhook agent call)'
+          debug 'Agent.del_call: hangup (for onhook agent call)', @key, id, disposition
           yield @transition 'hangup'
           return
 
         count = yield @count()
 
         if removed and count is 0
-          debug 'Agent.del_call: last call was removed', @key, count
+          debug 'Agent.del_call: last call was removed', @key, count, id, disposition
           yield @transition 'end_of_calls'
         else
-          debug 'Agent.del_call: calls left', @key, count
+          debug 'Agent.del_call: calls left', @key, count, id, disposition
         null
 
 Handle transitions
