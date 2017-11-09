@@ -99,8 +99,6 @@ Transfer-disposition values:
           yield @transition 'hangup'
           return
 
-        return if disposition is 'replaced'
-
         count = yield @count()
 
         if removed and count is 0

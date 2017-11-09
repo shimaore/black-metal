@@ -511,6 +511,7 @@ Switch agent
 ------------
 
 This is used by `huge-play` in order to track calls connected to an agent (especially outside the queuer).
+The `call` is the agent-side call (not a remote-call).
 
         set_agent: seem (call,new_key) ->
           debug 'Queuer.set_agent', call.id, new_key
