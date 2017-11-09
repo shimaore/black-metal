@@ -510,13 +510,18 @@ Do not automatically close the agent's call (in `dropped`) when a remote party h
 Switch agent
 ------------
 
+This is used by `huge-play` in order to track calls connected to an agent (especially outside the queuer).
+
         set_agent: seem (call,new_key) ->
           debug 'Queuer.set_agent', call.id, new_key
 
           return unless call? and new_key?
 
+          yield call.transition 'handle'
+
           old_key = yield call.get_agent()
           return if old_key is new_key
+          yield call.set_agent new_key
 
           if old_key?
             old_agent = new Agent this, old_key
@@ -524,8 +529,6 @@ Switch agent
 
           new_agent = new Agent this, new_key
           yield new_agent.add_call call.id
-
-          yield call.set_agent new_key
 
           return
 

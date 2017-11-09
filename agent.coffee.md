@@ -67,6 +67,11 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
           debug 'Agent.add_call: call was already present', @key, id
         null
 
+Transfer-disposition values:
+- `recv_replace`: we transfered the call out (blind transfer). (REFER To)
+- `replaced`: we accepted an inbound, supervised-transfer call. (Attended Transfer on originating session.)
+- `bridge`: we transfered the call out (supervised transfer).
+
       del_call: seem (id,disposition) ->
         debug 'Agent.del_call', @key, id, disposition
         return unless id?
@@ -93,6 +98,8 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
           debug 'Agent.del_call: hangup (for onhook agent call)', @key, id, disposition
           yield @transition 'hangup'
           return
+
+        return if disposition is 'replaced'
 
         count = yield @count()
 
