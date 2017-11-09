@@ -136,6 +136,8 @@ Monitor a call
         monitor_call: seem (call,my_name,their_name,hangup_event) ->
           debug 'Queuer.monitor_call', call.key
 
+          return if yield call.is_monitored()
+
           monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE'
 
           monitor.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>

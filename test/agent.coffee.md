@@ -44,6 +44,9 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
           on: ->
           end: ->
 
+      api_is_monitored = ->
+        false
+
       profile = 'booh!'
       class Reference
         get_destination: -> Promise.resolve 'hello'
@@ -54,7 +57,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
 
       class TestCall extends require '../call'
         interface: redis_interface
-        __api: truthy: api_truthy, monitor: api_monitor
+        __api: truthy: api_truthy, monitor: api_monitor, is_monitored: api_is_monitored
         profile: profile
         Reference: Reference
 

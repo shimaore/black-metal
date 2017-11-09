@@ -330,6 +330,11 @@ with the gentones notifications.
         return null unless @id?
         @__api.monitor @id, events
 
+      is_monitored: ->
+        debug 'Call.is_monitored', @id
+        return null unless @id?
+        @__api.is_monitored @id
+
       announce: seem (file) ->
         debug 'Call.announce', @id, file
         yield @api "uuid_broadcast #{@id} #{file}"
