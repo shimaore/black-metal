@@ -382,7 +382,7 @@ Egress pool
 
 We forcibly remove the call so that we do not end up ringing the same prospect/customer twice, esp. if in the first case there was no agent available.
 
-            @egress_pool.remove remote_call
+            yield @egress_pool.remove remote_call
 
             answered = yield send_to_agent(@egress_pool, remote_call).catch (error) ->
               debug.ops 'Queuer.__evaluate_agent: egress pool, error in send_to_agent', error.stack ? error.toString()
