@@ -117,7 +117,7 @@ For a given agent, their pool of ingress-calls-to-handle is therefor a subset of
           @__timers = {}
 
 Monitor a call
----------------------
+--------------
 
         monitor_remote_call: (remote_call) ->
           debug 'Queuer.monitor_remote_call', remote_call.key
@@ -504,6 +504,26 @@ Do not automatically close the agent's call (in `dropped`) when a remote party h
         set_timer: (key,timer) ->
           @clear_timer key
           @__timers[key] = timer
+
+Switch agent
+------------
+
+        set_agent: seem (call,new_key) ->
+          debug 'Queuer.set_agent', call, new_key
+
+          return unless call? and new_key?
+
+          old_key = yield call.get_agent()
+          return if old_key is new_key
+
+          if old_key?
+            old_agent = new Agent this, old_key
+            yield old_agent.del_call call.id
+
+          new_agent = new Agent this, new_key
+          yield new_agent.add_call call.id
+
+          return
 
 Agent behavior
 --------------
