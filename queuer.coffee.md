@@ -121,7 +121,7 @@ Monitor a call
 
         monitor_remote_call: (remote_call) ->
           debug 'Queuer.monitor_remote_call', remote_call.key
-          @monitor_call remote_call, 'remote_call', 'agent_call', (disposition) ->
+          @monitor_call remote_call, (disposition) ->
             switch disposition
               when 'recv_replace', 'replaced', 'bridge'
                 'transferred'
@@ -130,10 +130,10 @@ Monitor a call
 
         monitor_local_call: (agent_call) ->
           debug 'Queuer.monitor_local_call', agent_call.key
-          @monitor_call agent_call, 'agent_call', 'remote_call', (disposition) ->
+          @monitor_call agent_call, (disposition) ->
             'hangup'
 
-        monitor_call: seem (call,my_name,their_name,hangup_event) ->
+        monitor_call: seem (call,hangup_event) ->
           debug 'Queuer.monitor_call', call.key
 
           return if yield call.is_monitored()
@@ -168,11 +168,13 @@ Monitor a call
 
             yield call.load()
 
+            agent_key = yield call.get_agent()
+
             their_call = new Call this, id:b_uuid
             yield their_call.load()
 
-            yield call.transition 'bridge', "#{their_name}": their_call
-            yield their_call.transition 'bridge', "#{my_name}": call
+            yield call.transition 'bridge', call:their_call
+            yield their_call.transition 'bridge', if agent_key? then agent_call:call else {call}
             return
 
           monitor.on 'CHANNEL_UNBRIDGE', hand ({body}) =>
@@ -193,8 +195,8 @@ Monitor a call
             their_call = new Call this, id:b_uuid
             yield their_call.load()
 
-            yield call.transition 'unbridge', "#{their_name}": their_call
-            yield their_call.transition 'unbridge', "#{my_name}": call
+            yield call.transition 'unbridge', call:their_call
+            yield their_call.transition 'unbridge', {call}
             return
 
           return
