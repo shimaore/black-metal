@@ -49,7 +49,7 @@ Call Pool
             call = new Call @queuer, {key}
             yield call.load()
             result.push call
-          debug 'CallPool.all', @key, result
+          debug 'CallPool.all', @key, result.map (c) -> c.key
           result
 
 Available agents
@@ -509,7 +509,7 @@ Switch agent
 ------------
 
         set_agent: seem (call,new_key) ->
-          debug 'Queuer.set_agent', call, new_key
+          debug 'Queuer.set_agent', call.id, new_key
 
           return unless call? and new_key?
 
