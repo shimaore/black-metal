@@ -523,6 +523,8 @@ Switch agent
           new_agent = new Agent this, new_key
           yield new_agent.add_call call.id
 
+          yield call.set_agent new_key
+
           return
 
 Agent behavior
