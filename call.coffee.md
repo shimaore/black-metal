@@ -53,6 +53,8 @@ Create a new profile
           unless @destination? or @id?
             throw new Error 'new Call: either destination or id is required'
 
+        @__bridged_key = "#{@class_name}-#{@key}-Sb"
+
 `new Call` MUST be followed by either `.save()` or `.load()`.
 
       save: seem ->
@@ -316,6 +318,19 @@ with the gentones notifications.
         yield @api "uuid_broadcast #{@id} gentones::%(100,20,600);%(100,0,400) aleg"
         yield sleep 400
 
+      on_bridge: seem (b_call,data) ->
+        data ?= call: b_call
+        yield @interface.add @__bridged_key, b_call.key
+        @transition 'bridge', data
+
+      on_unbridge: seem (b_call,disposition) ->
+        data = call: b_call
+        yield @interface.remove @__bridged_key, b_call.key
+        if 0 is yield @interface.count @__bridged_key
+          @transition 'unbridge', data
+        else
+          @transition 'unbridge_ignore', data
+
       hangup: seem ->
         debug 'Call.hangup', @id
         if @id?
@@ -440,6 +455,7 @@ Events:
 - miss : disappeared from system
 - bridge
 - unbridge
+- unbridge_ignore
 - broadcast
 - handle
 
@@ -489,6 +505,8 @@ This might lead to multiple agents ringing even if the `broadcast` option is not
         hungup: 'dropped'
         miss: 'dropped' # disappeared from system
         pool: 'pooled'
+        bridge: 'bridged' # more than one call bridged (e.g. during transfer)
+        unbridge_ignore: 'bridged' # unbridge but other remain (definitely during transfers)
         unbridge: 'unbridged'
 
       unbridged:

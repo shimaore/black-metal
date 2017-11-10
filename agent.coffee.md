@@ -234,9 +234,10 @@ Bridge on agent call (calling or called).
 
           remote_call = @new_call id:b_uuid
           yield remote_call.load()
-          yield remote_call.set_remote_agent @key
+          yield remote_call.set_remote_agent @key # probably redundant, now
           yield @transition 'bridge', call:remote_call
 
+          yield agent_call.on_bridge remote_call
           return
 
 Unbridge on agent call (calling or called).
@@ -256,6 +257,7 @@ Unbridge on agent call (calling or called).
           else
             yield @transition 'unbridge', call:remote_call
 
+          yield agent_call.on_unbridge remote_call
           return
 
         monitor?.on 'DTMF', hand ({body}) =>

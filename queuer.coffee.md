@@ -211,8 +211,8 @@ Let each call-leg know which agent it is connected to. (This includes _not_ bein
             yield a_call.set_remote_agent b_agent_key
             yield b_call.set_remote_agent a_agent_key
 
-            yield a_call.transition 'bridge', if b_agent_key? then agent_call:b_call else call:b_call
-            yield b_call.transition 'bridge', if a_agent_key? then agent_call:a_call else call:a_call
+            yield a_call.on_bridge b_call, if b_agent_key? then agent_call:b_call else call:b_call
+            yield b_call.on_bridge a_call, if a_agent_key? then agent_call:a_call else call:a_call
             return
 
           monitor.on 'CHANNEL_UNBRIDGE', hand ({body}) =>
@@ -254,8 +254,8 @@ And remove the link to the remote agent as well.
             yield a_call.set_remote_agent null if b_agent_key is yield a_call.get_remote_agent()
             yield b_call.set_remote_agent null if a_agent_key is yield b_call.get_remote_agent()
 
-            yield a_call.transition 'unbridge', call:b_call
-            yield b_call.transition 'unbridge', call:a_call
+            yield a_call.on_unbridge b_call
+            yield b_call.on_unbridge a_call
             return
 
           return
