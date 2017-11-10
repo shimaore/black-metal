@@ -203,7 +203,7 @@ The call leg might be connected to an agent.
             yield b_call.load()
             b_agent_key = yield b_call.get_local_agent()
 
-Let each call-leg know which agent is connected to. (This includes _not_ being connected to an agent.)
+Let each call-leg know which agent it is connected to. (This includes _not_ being connected to an agent.)
 
             yield a_call.set_remote_agent b_agent_key
             yield b_call.set_remote_agent a_agent_key

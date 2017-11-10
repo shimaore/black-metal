@@ -403,8 +403,14 @@ Local-Agent: the agent attached to this call leg. Can only be set once.
 
 Remote-Agent: the agent attached to another call leg, presumably bridged to this one.
 
-      set_remote_agent: (agent) ->
-        @set 'remote-agent', agent
+      set_remote_agent: seem (agent) ->
+        if agent?
+          reference = yield @get_reference()
+          my_reference = new @Reference reference
+          yield my_reference.set_endpoint agent
+          yield my_reference.add_in agent
+
+        yield @set 'remote-agent', agent
 
       get_remote_agent: ->
         @get 'remote-agent'
