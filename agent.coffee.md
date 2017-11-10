@@ -44,6 +44,11 @@ Base features
 Monitor calls for this agent, keeping state so that we can decide whether the agent is busy or not.
 (The `id` always refers to the agent's channel, not the remote end.)
 
+### add-call
+
+This is meant for calls _not_ managed by the queuer. (Although attempting to do so should somewhat harmless.)
+Especially, the remote call-leg the agent is supposed to be handling is stored as `remote-call` (see `@set_remote_call` and `@get_remote_call` below).
+
       add_call: seem (id) ->
         debug 'Agent.add_call', @key, id
         return unless id?
@@ -58,6 +63,10 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
           debug 'Agent.add_call: offhook agent connected (ignored)', @key, id
           return
 
+        remote_call = yield @get_remote_call()
+        if remote_call? and id is remote_call.id
+          debug.dev 'Error: attempting to add the (queuer-managed) remote-call', @key, id
+
         added = yield @add id
 
         if added
@@ -66,6 +75,12 @@ Monitor calls for this agent, keeping state so that we can decide whether the ag
         else
           debug 'Agent.add_call: call was already present', @key, id
         null
+
+### del-call
+
+Remove a call-leg from the list of connected call-legs.
+
+Contrarily to `add_call`, this method can (and should) be used for any type of call-legs, including the ones managed by the queuer.
 
 Transfer-disposition values:
 - `recv_replace`: we transfered the call out (blind transfer). (REFER To)
@@ -219,7 +234,7 @@ Bridge on agent call (calling or called).
 
           remote_call = @new_call id:b_uuid
           yield remote_call.load()
-          yield remote_call.set_agent @key
+          yield remote_call.set_remote_agent @key
           yield @transition 'bridge', call:remote_call
 
           return
@@ -237,7 +252,7 @@ Unbridge on agent call (calling or called).
 
           if disposition is 'replaced'
             # expect body.variable_endpoint_disposition is 'ATTENDED_TRANSFER'
-            yield remote_call.set_agent @key
+            yield remote_call.set_remote_agent @key
           else
             yield @transition 'unbridge', call:remote_call
 
@@ -273,7 +288,7 @@ Attempt to transition to login with the call-id.
           return null
 
         yield agent_call.save()
-        yield agent_call.set_agent @key
+        yield agent_call.set_local_agent @key
         yield @set_offhook_call agent_call
         unless yield @transition 'login'
           debug 'Agent.accept_offhook transition failed, hanging up'
@@ -308,7 +323,7 @@ For on-hook we need to call the agent.
 
         agent_call = @new_call destination: @key
         yield agent_call.save()
-        yield agent_call.set_agent @key
+        yield agent_call.set_local_agent @key
         agent_call = yield agent_call.originate_internal caller
         unless agent_call?
           return null
@@ -356,9 +371,9 @@ Notify start of wrapup time to an agent
           yield current_call.hangup()
           yield @clear_call current_call
 
-      clear_call: seem (call) ->
-        return unless call?
-        yield call.set_agent null
+      clear_call: seem (remote_call) ->
+        return unless remote_call?
+        yield remote_call.set_remote_agent null
         yield @set_remote_call null
 
 Tools
@@ -414,6 +429,9 @@ Tools
       set_onhook_call: (onhook_call) ->
         debug 'set_onhook_call'
         @set_call 'onhook-call', onhook_call
+
+The remote-call should be a call leg, actively managed by the queuer, interesting this agent.
+It should _not_ be included in the list of connected calls outside the queuer (which is managed using `@add_call`, `@del_call`).
 
       get_remote_call: ->
         debug 'get_remote_call'

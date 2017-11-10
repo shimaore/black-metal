@@ -119,6 +119,12 @@ For a given agent, their pool of ingress-calls-to-handle is therefor a subset of
 Monitor a call
 --------------
 
+The functions in this section are meant for call legs that are _not_ related to an agent actively managed by the queuer
+(because those call-legs are managed by the monitoring code in the Agent module).
+
+The following is meant to handle:
+- external call legs (ingress or egress)
+
         monitor_remote_call: (remote_call) ->
           debug 'Queuer.monitor_remote_call', remote_call.key
           @monitor_call remote_call, (disposition) ->
@@ -128,35 +134,58 @@ Monitor a call
               else
                 'hungup'
 
+- internal (agent-bound) call legs outside the queuer.
+
         monitor_local_call: (agent_call) ->
           debug 'Queuer.monitor_local_call', agent_call.key
           @monitor_call agent_call, (disposition) ->
             'hangup'
 
-        monitor_call: seem (call,hangup_event) ->
-          debug 'Queuer.monitor_call', call.key
+In both cases the main goal is to keep track of the agent that might be connected to a call (especially during transfers) and update the state accordingly.
 
-          return if yield call.is_monitored()
+        monitor_call: seem (a_call,hangup_event) ->
+          debug 'Queuer.monitor_call', a_call.key
 
-          monitor = yield call.monitor 'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE'
+          return if yield a_call.is_monitored()
+
+          monitor = yield a_call.monitor 'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE'
+
+### Monitored call is hangup.
 
           monitor.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
             disposition = body?.variable_transfer_disposition
-            debug 'Queuer.monitor_call: CHANNEL_HANGUP_COMPLETE', call.key, disposition, body.variable_endpoint_disposition
+            debug 'Queuer.monitor_call: CHANNEL_HANGUP_COMPLETE', a_call.key, disposition, body.variable_endpoint_disposition
 
             heal monitor?.end()
             monitor = null
 
-            yield call.load()
+            yield a_call.load()
+
+If the call was transfered, clear the list of matching calls (used by `unbridge_except`).
+
             if disposition is 'replaced'
-              yield call.clear()
+              yield a_call.clear()
 
-            agent_key = yield call.get_agent()
-            if agent_key?
-              agent = new Agent this, agent_key
-              yield agent.del_call call.id, disposition
+The call leg might be bound to an agent.
+(Although it should not be an `on-hook` or `off-hook` call-leg: these are monitored in the `Agent` module.)
+Use `del_call` to notify the agent that its own call-leg got disconnected.
+(Really there should be a separate Agent method for that.)
 
-            yield call.transition hangup_event disposition
+            a_agent_key = yield a_call.get_local_agent()
+            if a_agent_key?
+              a_agent = new Agent this, a_agent_key
+              yield a_agent.del_call a_call.id, disposition
+
+The call leg might be connected to an agent.
+
+            b_agent_key = yield a_call.get_remote_agent()
+            if b_agent_key?
+              b_agent = new Agent this, b_agent_key
+              yield b_agent.del_call a_call.id, disposition
+
+            yield a_call.set_remote_agent null
+
+            yield a_call.transition hangup_event disposition
 
             return
 
@@ -166,15 +195,21 @@ Monitor a call
             disposition = body?.variable_transfer_disposition
             debug 'Queuer.monitor_call: CHANNEL_BRIDGE', a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
 
-            yield call.load()
+            b_call = new Call this, id:b_uuid
 
-            agent_key = yield call.get_agent()
+            yield a_call.load()
+            a_agent_key = yield a_call.get_local_agent()
 
-            their_call = new Call this, id:b_uuid
-            yield their_call.load()
+            yield b_call.load()
+            b_agent_key = yield b_call.get_local_agent()
 
-            yield call.transition 'bridge', call:their_call
-            yield their_call.transition 'bridge', if agent_key? then agent_call:call else {call}
+Let each call-leg know which agent is connected to. (This includes _not_ being connected to an agent.)
+
+            yield a_call.set_remote_agent b_agent_key
+            yield b_call.set_remote_agent a_agent_key
+
+            yield a_call.transition 'bridge', if b_agent_key? then agent_call:b_call else call:b_call
+            yield b_call.transition 'bridge', if a_agent_key? then agent_call:a_call else call:a_call
             return
 
           monitor.on 'CHANNEL_UNBRIDGE', hand ({body}) =>
@@ -183,20 +218,40 @@ Monitor a call
             disposition = body?.variable_transfer_disposition
             debug 'Queuer.monitor_call: CHANNEL_UNBRIDGE', a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
 
-            yield call.load()
+            b_call = new Call this, id:b_uuid
+
+            yield a_call.load()
+            a_agent_key = yield a_call.get_local_agent()
+
+            yield b_call.load()
+            b_agent_key = yield b_call.get_local_agent()
+
+If the call was transfered, clear the list of matching calls (used by `unbridge_except`).
+
             if disposition is 'replaced'
-              yield call.clear()
+              yield a_call.clear()
 
-            agent_key = yield call.get_agent()
-            if agent_key?
-              agent = new Agent this, agent_key
-              yield agent.del_call call.id, disposition
+Remove the other call leg from each agent's list.
 
-            their_call = new Call this, id:b_uuid
-            yield their_call.load()
+            if a_agent_key?
+              a_agent = new Agent this, a_agent_key
+              yield a_agent.del_call b_call.id, disposition
 
-            yield call.transition 'unbridge', call:their_call
-            yield their_call.transition 'unbridge', {call}
+            if b_agent_key?
+              b_agent = new Agent this, b_agent_key
+              yield b_agent.del_call a_call.id, disposition
+
+And remove the link to the remote agent as well.
+
+            ###
+            # This might run into issues.
+            # We really need an atomic "set to this new value if the value was" operation.
+            ###
+            yield a_call.set_remote_agent null if b_agent_key is yield a_call.get_remote_agent()
+            yield b_call.set_remote_agent null if a_agent_key is yield b_call.get_remote_agent()
+
+            yield a_call.transition 'unbridge', call:b_call
+            yield b_call.transition 'unbridge', call:a_call
             return
 
           return
@@ -325,7 +380,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             debug 'Queuer.__evaluate_agent send_to_agent: bridge', agent.key, call.key
 
-            yield agent_call.set_agent agent.key
+            yield agent_call.set_local_agent agent.key
             yield agent_call.transition 'handle'
             unless yield call.bridge agent_call
               yield heal call.remove agent_call.id # undo what was done in `call.originate_internal`
@@ -335,7 +390,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
               return false
 
             debug 'Queuer.__evaluate_agent send_to_agent: Successfully bridged', agent.key, call.key, call.id, agent_call.key
-            yield call.set_agent agent.key
+            yield call.set_remote_agent agent.key
             yield agent.transition 'answer', {call}
 
 ### Main body for `__evaluate_agent`
@@ -520,9 +575,9 @@ The `call` is the agent-side call (not a remote-call).
 
           yield call.transition 'handle'
 
-          old_key = yield call.get_agent()
+          old_key = yield call.get_remote_agent()
           return if old_key is new_key
-          yield call.set_agent new_key
+          yield call.set_remote_agent new_key
 
           if old_key?
             old_agent = new Agent this, old_key

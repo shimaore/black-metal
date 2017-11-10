@@ -388,11 +388,26 @@ with the gentones notifications.
       get_music: ->
         @get 'music'
 
-      set_agent: (agent) ->
-        @set 'agent', agent
+Local-Agent: the agent attached to this call leg. Can only be set once.
 
-      get_agent: ->
-        @get 'agent'
+      set_local_agent: seem (agent) ->
+        current = yield @get_local_agent()
+        return if agent is current
+        if current?
+          debug.dev 'Error: Can only set local-agent once', @key, current, agent
+          return
+        yield @set 'local-agent', agent
+
+      get_local_agent: ->
+        @get 'local-agent'
+
+Remote-Agent: the agent attached to another call leg, presumably bridged to this one.
+
+      set_remote_agent: (agent) ->
+        @set 'remote-agent', agent
+
+      get_remote_agent: ->
+        @get 'remote-agent'
 
 Call Transitions
 ----------------
