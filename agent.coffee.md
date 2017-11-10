@@ -218,11 +218,14 @@ Hangup on agent call (agent can be called or callee).
             when 'recv_replace', 'bridge'
               if yield @transition 'agent_transfer', {call}
                 yield @clear_call call
+              yield agent_call.transition 'transferred'
             when 'replaced'
-              true
+              yield agent_call.transition 'transferred'
             else
               if yield @transition 'agent_hangup', {call}
                 yield @disconnect_remote()
+              yield agent_call.transition 'hungup'
+
           return
 
 Bridge on agent call (calling or called).
