@@ -154,12 +154,16 @@ In both cases the main goal is to keep track of the agent that might be connecte
 
           monitor.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
             disposition = body?.variable_transfer_disposition
-            debug 'Queuer.monitor_call: CHANNEL_HANGUP_COMPLETE', a_call.key, disposition, body.variable_endpoint_disposition
 
             heal monitor?.end()
             monitor = null
 
             yield a_call.load()
+
+            a_agent_key = yield a_call.get_local_agent()
+            b_agent_key = yield a_call.get_remote_agent()
+
+            debug 'Queuer.monitor_call: CHANNEL_HANGUP_COMPLETE', a_call.key, a_agent_key, b_agent_key, disposition, body.variable_endpoint_disposition
 
 If the call was transfered, clear the list of matching calls (used by `unbridge_except`).
 
@@ -171,14 +175,12 @@ The call leg might be bound to an agent.
 Use `del_call` to notify the agent that its own call-leg got disconnected.
 (Really there should be a separate Agent method for that.)
 
-            a_agent_key = yield a_call.get_local_agent()
             if a_agent_key?
               a_agent = new Agent this, a_agent_key
               yield a_agent.del_call a_call.id, disposition
 
 The call leg might be connected to an agent.
 
-            b_agent_key = yield a_call.get_remote_agent()
             if b_agent_key?
               b_agent = new Agent this, b_agent_key
               yield b_agent.del_call a_call.id, disposition
@@ -193,7 +195,6 @@ The call leg might be connected to an agent.
             a_uuid = body['Bridge-A-Unique-ID']
             b_uuid = body['Bridge-B-Unique-ID']
             disposition = body?.variable_transfer_disposition
-            debug 'Queuer.monitor_call: CHANNEL_BRIDGE', a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
 
             b_call = new Call this, id:b_uuid
 
@@ -202,6 +203,8 @@ The call leg might be connected to an agent.
 
             yield b_call.load()
             b_agent_key = yield b_call.get_local_agent()
+
+            debug 'Queuer.monitor_call: CHANNEL_BRIDGE', a_uuid, a_agent_key, b_uuid, b_agent_key, disposition, body.variable_endpoint_disposition
 
 Let each call-leg know which agent it is connected to. (This includes _not_ being connected to an agent.)
 
@@ -216,7 +219,6 @@ Let each call-leg know which agent it is connected to. (This includes _not_ bein
             a_uuid = body['Bridge-A-Unique-ID']
             b_uuid = body['Bridge-B-Unique-ID']
             disposition = body?.variable_transfer_disposition
-            debug 'Queuer.monitor_call: CHANNEL_UNBRIDGE', a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
 
             b_call = new Call this, id:b_uuid
 
@@ -225,6 +227,8 @@ Let each call-leg know which agent it is connected to. (This includes _not_ bein
 
             yield b_call.load()
             b_agent_key = yield b_call.get_local_agent()
+
+            debug 'Queuer.monitor_call: CHANNEL_UNBRIDGE', a_uuid, a_agent_key, b_uuid, b_agent_key, disposition, body.variable_endpoint_disposition
 
 If the call was transfered, clear the list of matching calls (used by `unbridge_except`).
 
@@ -569,7 +573,7 @@ This is used by `huge-play` in order to track calls connected to an agent (espec
 The `call` is the agent-side call (not a remote-call).
 
         set_agent: seem (call,new_key) ->
-          debug 'Queuer.set_agent', call.id, new_key
+          debug 'Queuer.set_agent', call?.key, new_key
 
           return unless call? and new_key?
 
@@ -577,7 +581,7 @@ The `call` is the agent-side call (not a remote-call).
 
           old_key = yield call.get_remote_agent()
           return if old_key is new_key
-          yield call.set_remote_agent new_key
+          yield call.set_local_agent new_key
 
           if old_key?
             old_agent = new Agent this, old_key

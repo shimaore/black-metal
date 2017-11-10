@@ -391,12 +391,17 @@ with the gentones notifications.
 Local-Agent: the agent attached to this call leg. Can only be set once.
 
       set_local_agent: seem (agent) ->
+        debug 'Call.set_local_agent', @key, agent
+
         current = yield @get_local_agent()
         return if agent is current
+
         if current?
           debug.dev 'Error: Can only set local-agent once', @key, current, agent
           return
+
         yield @set 'local-agent', agent
+        return
 
       get_local_agent: ->
         @get 'local-agent'
@@ -404,6 +409,8 @@ Local-Agent: the agent attached to this call leg. Can only be set once.
 Remote-Agent: the agent attached to another call leg, presumably bridged to this one.
 
       set_remote_agent: seem (agent) ->
+        debug 'Call.set_remote_agent', @key, agent
+
         if agent?
           reference = yield @get_reference()
           my_reference = new @Reference reference
@@ -411,6 +418,7 @@ Remote-Agent: the agent attached to another call leg, presumably bridged to this
           yield my_reference.add_in agent
 
         yield @set 'remote-agent', agent
+        return
 
       get_remote_agent: ->
         @get 'remote-agent'
