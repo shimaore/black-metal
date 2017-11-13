@@ -32,6 +32,6 @@
     "tangible": "^1.9.0"
   },
   "publishConfig": {
-    "tag": "dev"
+    "tag": "latest"
   }
 }
