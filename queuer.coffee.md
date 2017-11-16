@@ -538,9 +538,9 @@ If the agent is idle, move forward in the background.
               yield @ingress_pool.remove call
               yield @egress_pool.remove call
 
-              if data.agent_call?
+              yield call.set_answered()
 
-                yield call.set_answered()
+              if data.agent_call?
 
 Hang up all other (ringing) agents.
 
