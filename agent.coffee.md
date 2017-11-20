@@ -329,14 +329,14 @@ For on-hook we need to call the agent.
         agent_call = @new_call destination: @key
         yield agent_call.save()
         yield agent_call.set_local_agent @key
-        agent_call = yield agent_call.originate_internal caller
-        unless agent_call?
-          return null
+        reason = yield agent_call.originate_internal caller
+        if reason?
+          return {reason}
 
         unless yield @__monitor agent_call
           yield heal caller.remove agent_call.id
           heal agent_call.hangup()
-          return null
+          return reason:'NO MONITOR'
 
         yield @set_onhook_call agent_call
         agent_call

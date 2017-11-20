@@ -373,12 +373,12 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             debug 'Queuer.__evaluate_agent send_to_agent: originate', agent.key, call.key
 
-            agent_call = yield agent.originate call
+            {reason} = agent_call = yield agent.originate call
 
-            unless agent_call?
+            if reason
               yield agent.set_remote_call null
               yield agent.incr_missed()
-              yield agent.transition 'missed', {call}
+              yield agent.transition 'missed', {call,reason}
               heal call.transition 'pool'
               return false
 

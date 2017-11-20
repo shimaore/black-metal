@@ -157,6 +157,8 @@ The destination endpoint is stored as the `@destination` field.
 
 The `caller` object is the remote Call object.
 
+Returns a string indicating the error in case of failure; null in case of success.
+
       originate_internal: seem (caller) ->
         debug 'Call.originate_internal', @key, @destination
 
@@ -168,7 +170,7 @@ The `reference` is set either:
 
         unless reference?
           debug.dev 'Call.originate_internal: caller has no reference', caller.key, @key, @destination
-          return null
+          return 'NO REFERENCE'
 
         source = yield caller.get_remote_number()
         source ?= 'caller'
@@ -177,9 +179,9 @@ Agent in off-hook mode
 
         if @id?
           if yield @exists()
-            return this
-          else
             return null
+          else
+            return 'DOES NOT EXIST'
 
 Agent in on-hook mode
 
@@ -221,15 +223,30 @@ or (in case of multiple presentations) when someone picks the call up.
 
         yield caller.add id
 
-        if yield @api "originate {#{params}}sofia/#{@profile}/#{@destination} &park"
+        body = yield @__api "originate {#{params}}sofia/#{@profile}/#{@destination} &park"
+
+Typically the body might contain:
+- `+OK <uuid>\n`
+- `-ERR <reason>\n`
+where reason might be:
+- `PROGRESS_TIMEOUT` - phone rang but noone answered
+- `NO_USER_RESPONSE` - phone is on DND
+- `RECOVERY_ON_TIMER_EXPIRE` - phone is unreachable
+- etc.
+
+        connected = body?[0] is '+'
+
+        if connected
           @destination = null
           @id = id
           yield @save()
           yield @set_reference reference
-          this
+          return null
         else
+          reason = body?.substr(5).trimRight 1
+          reason ?= 'FAILED'
           yield caller.remove id
-          null
+          return reason
 
 Originate a call towards a third-party
 --------------------------------------
