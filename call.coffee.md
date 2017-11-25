@@ -297,7 +297,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
           yield @set_reference reference
           this
         else
-          yield @call.transition 'fail'
+          yield @transition 'fail'
           return
 
       bridge: seem (agent_call) ->
