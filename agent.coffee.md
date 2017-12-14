@@ -15,9 +15,12 @@ Agent
 
     class Agent extends RedisClient
 
-      constructor: (@queuer,key) ->
-        throw new Error 'Agent requires queuer' unless @queuer?
+      constructor: (queuer,key) ->
+        throw new Error 'Agent requires queuer' unless queuer?.is_a_queuer?()
+        throw new Error 'Agent requires key' unless key?
         super 'agent', key
+        @queuer = queuer
+        @key = key
         debug 'new Agent', @key
         [@number,@domain] = @key.split '@'
 
@@ -204,74 +207,76 @@ Actively monitor the call between the queuer and an agent (could be an off-hook 
 
         monitor = yield agent_call.monitor 'CHANNEL_HANGUP_COMPLETE', 'DTMF', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE'
 
+        self = this
+
 Hangup on agent call (agent can be called or callee).
 
-        monitor?.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
+        monitor?.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) ->
           disposition = body?.variable_transfer_disposition
           debug 'Agent.__monitor: CHANNEL_HANGUP_COMPLETE', @key, agent_call.key, disposition
           monitor?.end()
           monitor = null
 
-          yield @set_onhook_call null
-          call = yield @get_remote_call().catch -> null
+          yield self.set_onhook_call null
+          call = yield self.get_remote_call().catch -> null
           switch disposition
             when 'recv_replace', 'bridge'
-              if yield @transition 'agent_transfer', {call}
-                yield @clear_call call
+              if yield self.transition 'agent_transfer', {call}
+                yield self.clear_call call
               yield agent_call.transition 'transferred'
             when 'replaced'
               yield agent_call.transition 'transferred'
             else
-              if yield @transition 'agent_hangup', {call}
-                yield @disconnect_remote()
+              if yield self.transition 'agent_hangup', {call}
+                yield self.disconnect_remote()
               yield agent_call.transition 'hungup'
 
           return
 
 Bridge on agent call (calling or called).
 
-        monitor?.on 'CHANNEL_BRIDGE', hand ({body}) =>
+        monitor?.on 'CHANNEL_BRIDGE', hand ({body}) ->
           a_uuid = body['Bridge-A-Unique-ID']
           b_uuid = body['Bridge-B-Unique-ID']
           debug 'Agent.__monitor: CHANNEL_BRIDGE', key, a_uuid, b_uuid
 
-          remote_call = @new_call id:b_uuid
+          remote_call = self.new_call id:b_uuid
           yield remote_call.load()
-          yield remote_call.set_remote_agent @key # probably redundant, now
-          yield @transition 'bridge', call:remote_call
+          yield remote_call.set_remote_agent self.key # probably redundant, now
+          yield self.transition 'bridge', call:remote_call
 
           yield agent_call.on_bridge remote_call
           return
 
 Unbridge on agent call (calling or called).
 
-        monitor?.on 'CHANNEL_UNBRIDGE', hand ({body}) =>
+        monitor?.on 'CHANNEL_UNBRIDGE', hand ({body}) ->
           a_uuid = body['Bridge-A-Unique-ID']
           b_uuid = body['Bridge-B-Unique-ID']
           disposition = body.variable_transfer_disposition
           debug 'Agent.__monitor: CHANNEL_UNBRIDGE', key, a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
 
-          remote_call = @new_call id:b_uuid
+          remote_call = self.new_call id:b_uuid
           yield remote_call.load()
 
           if disposition is 'replaced'
             # expect body.variable_endpoint_disposition is 'ATTENDED_TRANSFER'
-            yield remote_call.set_remote_agent @key
+            yield remote_call.set_remote_agent self.key
           else
-            yield @transition 'unbridge', call:remote_call
+            yield self.transition 'unbridge', call:remote_call
 
           yield agent_call.on_unbridge remote_call
           return
 
-        monitor?.on 'DTMF', hand ({body}) =>
-          debug 'Agent.__monitor: DTMF', @key
-          call = yield @get_remote_call().catch -> null
+        monitor?.on 'DTMF', hand ({body}) ->
+          debug 'Agent.__monitor: DTMF', self.key
+          call = yield self.get_remote_call().catch -> null
           switch body['DTMF-Digit']
             when '*', '7', '4', '1'
-              if yield @transition 'force_hangup', {call}
-                yield @disconnect_remote()
+              if yield self.transition 'force_hangup', {call}
+                yield self.disconnect_remote()
             when '#', '9', '6', '3'
-              yield @transition 'complete', {call}
+              yield self.transition 'complete', {call}
           return
 
         monitor

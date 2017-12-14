@@ -12,12 +12,17 @@ Policy
 The policy is:
 
     policy = seem (calls) ->
-      filtered = yield Bluebird.filter calls, seem (call) =>
+      agent_state = yield @get_state()
+      agent_broadcast = yield @has_tag 'broadcast'
+      agent_domain = @domain
+      agent_key = @key
+      agent_has_tag = (tag) => @has_tag tag
 
-        debug 'Checking call for agent', call.key, @key
+      filtered = yield Bluebird.filter calls, seem (call) ->
+
+        debug 'Checking call for agent', call.key, agent_key
 
         call_state = yield call.state()
-        agent_state = yield @get_state()
 
         switch call_state
           when 'pooled'
@@ -31,9 +36,8 @@ Do not make parallel attempts for calls that have no id (outbound calls).
               return false
 
             call_broadcast = yield call.broadcast()
-            agent_broadcast = yield @has_tag 'broadcast'
             unless call_broadcast or agent_broadcast
-              debug 'Call is already being handled', call.key, @key
+              debug 'Call is already being handled', call.key, agent_key
               return false
 
             call.broadcasting = true
@@ -46,30 +50,30 @@ Do not make parallel attempts for calls that have no id (outbound calls).
 
 - domains must match
 
-        unless in_domain call_tags, @domain
-          debug 'No domain match', call.key, @key, @domain, call_tags
+        unless in_domain call_tags, agent_domain
+          debug 'No domain match', call.key, agent_key, agent_domain, call_tags
           return false
 
 - if at least one queue is listed, the agent must accept calls from (one of) these queue(s)
 
         call_queues = queues call_tags
-        debug 'Checking agent for queues', call.key, @key, call_queues
+        debug 'Checking agent for queues', call.key, agent_key, call_queues
         if call_queues.length > 0
           ok = false
           for queue_tag in call_queues when not ok
-            if yield @has_tag queue_tag
+            if yield agent_has_tag queue_tag
               ok = true
           unless ok
-            debug 'No queues match', call.key, @key, call_queues
+            debug 'No queues match', call.key, agent_key, call_queues
             return false
 
 - the agent must have all the skills listed for the call
 
         call_required_skills = skills call_tags
-        debug 'Checking agent for skills', call.key, @key, call_required_skills
+        debug 'Checking agent for skills', call.key, agent_key, call_required_skills
         for skill_tag in call_required_skills
-          unless yield @has_tag skill_tag
-            debug 'No skill match', call.key, @key, skill_tag
+          unless yield agent_has_tag skill_tag
+            debug 'No skill match', call.key, agent_key, skill_tag
             return false
 
         call.priority = priority call_tags
@@ -155,14 +159,14 @@ Other tags might be added by the application (for example to add caller-based ta
         yield @add_tags tags
 
       save: ->
-        super().then seem =>
-          yield @set 'started-at', @started_at
-          this
+        super().then seem (self) ->
+          yield self.set 'started-at', self.started_at
+          self
 
       load: ->
-        super().then seem =>
-          @started_at = yield @get 'started-at'
-          this
+        super().then seem (self) ->
+          self.started_at = yield self.get 'started-at'
+          self
 
 Tagged Agent
 ------------

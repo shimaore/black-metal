@@ -21,10 +21,12 @@ Call Pool
 ---------
 
       class CallPool extends RedisClient
-        constructor: (@queuer,@name) ->
-          throw new Error 'CallPool requires queuer' unless @queuer?
-          debug 'new CallPool', @name
-          super 'CP', @name
+        constructor: (queuer,name) ->
+          throw new Error 'CallPool requires queuer' unless queuer?.is_a_queuer?()
+          debug 'new CallPool', name
+          super 'CP', name
+          @queuer = queuer
+          @name = name
 
         interface: redis_interface
 
@@ -45,8 +47,9 @@ Call Pool
         calls: seem ->
           debug 'CallPool.all', @key
           result = []
-          yield @forEach seem (key) =>
-            call = new Call @queuer, {key}
+          queuer = @queuer
+          yield @forEach seem (key) ->
+            call = new Call queuer, {key}
             yield call.load()
             result.push call
           debug 'CallPool.all', @key, result.map (c) -> c.key
@@ -57,10 +60,12 @@ Available agents
 
       class AgentPool extends RedisClient
 
-        constructor: (@queuer,@name) ->
-          throw new Error 'AgentPool requires queuer' unless @queuer?
+        constructor: (queuer,name) ->
+          throw new Error 'AgentPool requires queuer' unless queuer?.is_a_queuer?()
           debug 'new AgentPool'
-          super 'AP', @name
+          super 'AP', name
+          @queuer = queuer
+          @name = name
 
         interface: redis_interface
 
@@ -76,9 +81,10 @@ Available agents
 
         reevaluate: seem (cb) ->
           debug 'AgentPool.reevaluate'
-          yield @sorted_forEach seem (key) =>
+          queuer = @queuer
+          yield @sorted_forEach seem (key) ->
             debug 'AgentPool.reevaluate', key
-            agent = new Agent @queuer, key
+            agent = new Agent queuer, key
             yield cb agent
 
           return
@@ -108,6 +114,8 @@ For a given agent, their pool of ingress-calls-to-handle is therefor a subset of
 
         Call: Call
         Agent: Agent
+
+        is_a_queuer: -> true
 
         constructor: ->
           debug 'new Queuer'
@@ -150,9 +158,11 @@ In both cases the main goal is to keep track of the agent that might be connecte
 
           monitor = yield a_call.monitor 'CHANNEL_HANGUP_COMPLETE', 'CHANNEL_BRIDGE', 'CHANNEL_UNBRIDGE'
 
-### Monitored call is hangup.
+          self = this
 
-          monitor.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) =>
+### Monitored call is hung up.
+
+          monitor.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) ->
             disposition = body?.variable_transfer_disposition
 
             heal monitor?.end()
@@ -176,13 +186,13 @@ Use `del_call` to notify the agent that its own call-leg got disconnected.
 (Really there should be a separate Agent method for that.)
 
             if a_agent_key?
-              a_agent = new Agent this, a_agent_key
+              a_agent = new Agent self, a_agent_key
               yield a_agent.del_call a_call.id, disposition
 
 The call leg might be connected to an agent.
 
             if b_agent_key?
-              b_agent = new Agent this, b_agent_key
+              b_agent = new Agent self, b_agent_key
               yield b_agent.del_call a_call.id, disposition
 
             yield a_call.set_remote_agent null
@@ -191,12 +201,12 @@ The call leg might be connected to an agent.
 
             return
 
-          monitor.on 'CHANNEL_BRIDGE', hand ({body}) =>
+          monitor.on 'CHANNEL_BRIDGE', hand ({body}) ->
             a_uuid = body['Bridge-A-Unique-ID']
             b_uuid = body['Bridge-B-Unique-ID']
             disposition = body?.variable_transfer_disposition
 
-            b_call = new Call this, id:b_uuid
+            b_call = new Call self, id:b_uuid
 
             yield a_call.load()
             a_agent_key = yield a_call.get_local_agent()
@@ -215,12 +225,12 @@ Let each call-leg know which agent it is connected to. (This includes _not_ bein
             yield b_call.on_bridge a_call, if a_agent_key? then agent_call:a_call else call:a_call
             return
 
-          monitor.on 'CHANNEL_UNBRIDGE', hand ({body}) =>
+          monitor.on 'CHANNEL_UNBRIDGE', hand ({body}) ->
             a_uuid = body['Bridge-A-Unique-ID']
             b_uuid = body['Bridge-B-Unique-ID']
             disposition = body?.variable_transfer_disposition
 
-            b_call = new Call this, id:b_uuid
+            b_call = new Call self, id:b_uuid
 
             yield a_call.load()
             a_agent_key = yield a_call.get_local_agent()
@@ -238,11 +248,11 @@ If the call was transfered, clear the list of matching calls (used by `unbridge_
 Remove the other call leg from each agent's list.
 
             if a_agent_key?
-              a_agent = new Agent this, a_agent_key
+              a_agent = new Agent self, a_agent_key
               yield a_agent.del_call b_call.id, disposition
 
             if b_agent_key?
-              b_agent = new Agent this, b_agent_key
+              b_agent = new Agent self, b_agent_key
               yield b_agent.del_call a_call.id, disposition
 
 And remove the link to the remote agent as well.
@@ -296,7 +306,7 @@ Return:
 - a Call (towards or from a selected third-party),
 - or `null`.
 
-          build_call = seem (pool) =>
+          build_call = seem (pool) ->
 
             debug 'Queuer.__evaluate_agent build_call', agent.key
 
@@ -369,7 +379,7 @@ Hangup if we couldn't start monitoring.
 
 We need to send the call to the agent (using either onhook or offhook mode).
 
-          send_to_agent = seem (pool,call) =>
+          send_to_agent = seem (pool,call) ->
 
             debug 'Queuer.__evaluate_agent send_to_agent: originate', agent.key, call.key
 
@@ -408,7 +418,7 @@ Ingress pool
 
           debug 'Queuer.__evaluate_agent: ingress pool', agent.key
 
-          remote_call = yield build_call(@ingress_pool).catch (error) ->
+          remote_call = yield build_call.call(this,@ingress_pool).catch (error) ->
             debug.ops 'Queuer.__evaluate_agent: ingress pool, error in build_call', error.stack ? error.toString()
             null
 
@@ -416,7 +426,7 @@ Ingress pool
 
             debug 'Queuer.__evaluate_agent: ingress pool, got client call', agent.key
 
-            answered = yield send_to_agent(@ingress_pool, remote_call).catch (error) ->
+            answered = yield send_to_agent.call(this, @ingress_pool, remote_call).catch (error) ->
               debug.ops 'Queuer.__evaluate_agent: ingress pool, error in send_to_agent', error.stack ? error.toString()
               null
 
@@ -431,7 +441,7 @@ Egress pool
 
           debug 'Queuer.__evaluate_agent: egress pool', agent.key
 
-          remote_call = yield build_call(@egress_pool).catch (error) ->
+          remote_call = yield build_call.call(this,@egress_pool).catch (error) ->
             debug.ops 'Queuer.__evaluate_agent: egress pool, error in build_call', error.stack ? error.toString()
             null
 
@@ -443,7 +453,7 @@ We forcibly remove the call so that we do not end up ringing the same prospect/c
 
             yield @egress_pool.remove remote_call
 
-            answered = yield send_to_agent(@egress_pool, remote_call).catch (error) ->
+            answered = yield send_to_agent.call(this, @egress_pool, remote_call).catch (error) ->
               debug.ops 'Queuer.__evaluate_agent: egress pool, error in send_to_agent', error.stack ? error.toString()
               null
 

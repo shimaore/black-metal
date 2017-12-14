@@ -58,13 +58,15 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         set_endpoint: -> Promise.resolve yes
         add_in: -> Promise.resolve yes
 
-      class TestCall extends require '../call'
+      Call = require '../call'
+      class TestCall extends Call
         interface: redis_interface
         __api: api
         profile: profile
         Reference: Reference
 
-      class TestAgent extends require '../agent'
+      Agent = require '../agent'
+      class TestAgent extends Agent
         interface: redis_interface
         policy: policy
         create_egress_call: create_egress_call

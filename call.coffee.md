@@ -36,8 +36,9 @@ It should implement features similar to the ones found in the `api` object of `h
 
       api: (args...) -> @__api.truthy args...
 
-      constructor: (@queuer,{@destination,@id,key}) ->
-        throw new Error 'Call requires queuer' unless @queuer?
+      constructor: (queuer,{destination,id,key}) ->
+
+        throw new Error 'Call requires queuer' unless queuer?.is_a_queuer?()
 
 Load an existing call profile back.
 
@@ -48,10 +49,14 @@ Load an existing call profile back.
 Create a new profile
 
         else
-          debug 'new Call', @destination, @id
-          super 'call', @id ? @make_id()
-          unless @destination? or @id?
+          unless destination? or id?
             throw new Error 'new Call: either destination or id is required'
+          debug 'new Call', destination, id
+          super 'call', id ? make_id()
+
+        @queuer = queuer
+        @destination = destination
+        @id = id
 
         @__bridged_key = "#{@class_name}-#{@key}-Sb"
 
@@ -68,9 +73,6 @@ Create a new profile
         @destination = yield @get 'destination'
         @id = yield @get 'id'
         this
-
-      make_id: ->
-        make_id()
 
       exists: seem ->
         if @id?
@@ -311,10 +313,11 @@ Remove all the matched calls, except maybe one.
 
       unbridge_except: seem (except = null) ->
         debug 'Call.unbridge_except', @id, except
-        yield @forEach hand (id) =>
+        self = this
+        yield @forEach hand (id) ->
           return if id is except
-          yield @api("uuid_kill #{id}").catch -> yes
-          yield @remove id
+          yield self.api("uuid_kill #{id}").catch -> yes
+          yield self.remove id
 
       park: seem ->
         debug 'Call.park', @id
