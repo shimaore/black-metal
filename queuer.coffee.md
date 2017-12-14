@@ -462,6 +462,7 @@ No call
 
         queue_ingress_call: seem (call) ->
           debug 'Queuer.queue_ingress_call', call.key
+          yield call.set_poolable()
           yield @monitor_remote_call call
           yield @ingress_pool.add call
 
@@ -483,6 +484,7 @@ The call instance is created using data found e.g. in a database, the (egress) c
           call = yield agent.create_egress_call data
           if call?
             debug 'Queuer.create_egress_call_for: queue egress call', agent.key, call.key
+            yield call.set_poolable()
             yield agent.transition 'created'
             yield @egress_pool.add call
           else
@@ -529,7 +531,8 @@ If the agent is idle, move forward in the background.
           switch state
 
             when 'new' # aka `forgotten`
-              yield heal @ingress_pool.add call
+              if yield call.poolable()
+                yield heal @ingress_pool.add call
 
             when 'pooled'
               heal @__transition_available_agents 'new_call'

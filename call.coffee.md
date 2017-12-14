@@ -390,6 +390,12 @@ with the gentones notifications.
       broadcast: ->
         @has_tag 'broadcast'
 
+      poolable: ->
+        @get 'poolable'
+
+      set_poolable: ->
+        @set 'poolable'
+
       set_remote_number: (number) ->
         @set 'remote-number', number
 
