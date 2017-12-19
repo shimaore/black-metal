@@ -13,6 +13,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
 
     describe 'The Agent', ->
       redis = new Redis()
+      after -> setTimeout (-> redis.end()), 10000
       redis_interface = new RedisInterface redis
 
       policy = (calls) ->
@@ -20,13 +21,16 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         return null if @key is 'lalala'
         calls[0]
 
+      created = 0
       create_egress_call = seem ->
         debug 'create_egress_call for', @key
         switch @key
           when 'lululu'
+            return null if created++ > 0
             call = new TestCall @queuer, destination: '33643482771'
             yield call.save()
             yield call.set_reference 'hello-world'
+            setTimeout (-> call.transition 'dropped'), 2500
             call
           else
             null
@@ -43,9 +47,11 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
       api.monitor = (id,events) ->
         debug 'api.monitor'
         return
-          once: ->
+          once: (msg,cb) ->
+            if msg is 'CHANNEL_HANGUP_COMPLETE'
+              setTimeout (-> cb body:{}), 4000
           on: ->
-          end: ->
+          end: -> Promise.resolve()
 
       api.is_monitored = ->
         false
@@ -91,9 +97,9 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         yield redis.del 'CP-ingress-S'
         yield redis.del 'CP-egress-S'
         yield redis.del 'call-1234-P'
+        yield redis.del 'call-1234-S'
 
       before cleanup
-      after cleanup
 
       it 'should increment external calls', seem ->
         queuer = new Queuer()
@@ -102,6 +108,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         (yield redis.scard 'agent-lalala-S').should.equal 1
         yield agent.del_call 1234
         (yield redis.scard 'agent-lalala-S').should.equal 0
+        queuer.end()
 
       it 'should transition on login', seem ->
         queuer = new Queuer()
@@ -115,15 +122,17 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         (yield redis.zrank 'AP-available-Z', 'lalala').should.be.within 0, 1
         ok = yield agent.transition 'logout'
         ok.should.be.true
+        queuer.end()
+        return
 
       it 'should trigger call on idle', seem ->
         @timeout 4000
         queuer = new Queuer()
-        agent = new TestAgent queuer, 'lalala'
-        ok = yield agent.transition 'login'
+        agent1 = new TestAgent queuer, 'lalala'
+        ok = yield agent1.transition 'login'
         ok.should.be.true
-        agent = new TestAgent queuer, 'lululu'
-        ok = yield agent.transition 'login'
+        agent2 = new TestAgent queuer, 'lululu'
+        ok = yield agent2.transition 'login'
         ok.should.be.true
         yield sleep 700
         (yield redis.hget 'agent-lululu-P', 'state').should.equal 'presenting'
@@ -131,6 +140,10 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         yield sleep 1800
         (yield redis.hget 'agent-lululu-P', 'state').should.equal 'in_call'
         (yield redis.hget 'agent-lalala-P', 'state').should.equal 'waiting'
+        ok = yield agent1.transition 'logout'
+        ok = yield agent2.transition 'logout'
+        queuer.end()
+        return
 
       it 'should transition on ingress', seem ->
         @timeout 5000
@@ -157,3 +170,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         waiting += 1 if (yield redis.hget 'agent-lalilo-P', 'state') is 'waiting'
         waiting += 1 if (yield redis.hget 'agent-laloli-P', 'state') is 'waiting'
         chai.expect(waiting).to.equal 1
+        ok = yield lalilo.transition 'logout'
+        ok = yield laloli.transition 'logout'
+        queuer.end()
+        return

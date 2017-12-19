@@ -543,6 +543,8 @@ If the agent is idle, move forward in the background.
             when 'new' # aka `forgotten`
               if yield call.poolable()
                 yield heal @ingress_pool.add call
+              else
+                debug.dev 'Ignoring non-poolable call', call.key
 
             when 'pooled'
               heal @__transition_available_agents 'new_call'
@@ -572,12 +574,18 @@ Do not automatically close the agent's call (in `dropped`) when a remote party h
 
         clear_timer: (key) ->
           if @__timers[key]?
+            debug 'Queuer.clear_timer', key
             clearTimeout @__timers[key]
             delete @__timers[key]
 
         set_timer: (key,timer) ->
           @clear_timer key
           @__timers[key] = timer
+
+        end: ->
+          for own key of @__timers
+            @clear_timer key
+          return
 
 Switch agent
 ------------
