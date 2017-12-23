@@ -30,7 +30,7 @@ Keep these under the shortest state-machine timer, currently 59s.
 
 The following field MUST be provided by an implementation class.
 It should implement features similar to the ones found in the `api` object of `huge-play/middleware/setup`.
-(Currently we rely on `api.truthy`, `api.monitor`, and `api.send`.)
+(Currently we rely on `api.truthy`, `api.monitor`, and `api.is_monitored`.)
 
       __api: null
 
@@ -397,7 +397,7 @@ with the gentones notifications.
         @get 'poolable'
 
       set_poolable: ->
-        @set 'poolable'
+        @set 'poolable', true
 
       set_remote_number: (number) ->
         @set 'remote-number', number

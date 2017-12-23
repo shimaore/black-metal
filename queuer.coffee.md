@@ -86,6 +86,7 @@ Available agents
             debug 'AgentPool.reevaluate', key
             agent = new Agent queuer, key
             yield cb agent
+            return
 
           return
 
