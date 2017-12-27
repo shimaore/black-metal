@@ -16,13 +16,16 @@ Agent
     class Agent extends RedisClient
 
       constructor: (queuer,key) ->
+        debug 'new Agent', key
         throw new Error 'Agent requires queuer' unless queuer?.is_a_queuer?()
         throw new Error 'Agent requires key' unless key?
+        [number,domain] = key.split '@'
+        throw new Error "Agent requires domain: #{key}" unless domain?
         super 'agent', key
         @queuer = queuer
         @key = key
-        debug 'new Agent', @key
-        [@number,@domain] = @key.split '@'
+        @number = number
+        @domain = domain
 
 Virtual features
 ----------------

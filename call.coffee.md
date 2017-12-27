@@ -36,9 +36,10 @@ It should implement features similar to the ones found in the `api` object of `h
 
       api: (args...) -> @__api.truthy args...
 
-      constructor: (queuer,{destination,id,key}) ->
+      constructor: (queuer,domain,{destination,id,key}) ->
 
         throw new Error 'Call requires queuer' unless queuer?.is_a_queuer?()
+        throw new Error 'Call requires domain' unless domain?
 
 Load an existing call profile back.
 
@@ -55,6 +56,7 @@ Create a new profile
           super 'call', id ? make_id()
 
         @queuer = queuer
+        @domain = domain
         @destination = destination
         @id = id
 
@@ -64,12 +66,14 @@ Create a new profile
 
       save: seem ->
         debug 'Call.save', @key
+        yield @set 'domain', @domain
         yield @set 'destination', @destination
         yield @set 'id', @id
         this
 
       load: seem ->
         debug 'Call.load', @key
+        @domain = yield @get 'domain'
         @destination = yield @get 'destination'
         @id = yield @get 'id'
         this

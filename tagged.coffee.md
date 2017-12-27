@@ -48,10 +48,10 @@ Do not make parallel attempts for calls that have no id (outbound calls).
 
         call_tags = new Set yield call.tags()
 
-- domains must match
+- domains must match (this should always be true)
 
         unless in_domain call_tags, agent_domain
-          debug 'No domain match', call.key, agent_key, agent_domain, call_tags
+          debug.dev 'No domain match', call.key, agent_key, agent_domain, call_tags
           return false
 
 - if at least one queue is listed, the agent must accept calls from (one of) these queue(s)
@@ -149,8 +149,8 @@ Other tags might be added by the application (for example to add caller-based ta
 
     class TaggedCall extends Call
 
-      constructor: (queuer,opts) ->
-        super queuer, opts
+      constructor: (queuer,domain,opts) ->
+        super queuer, domain, opts
         debug 'new TaggedCall'
         @started_at = new Date().getTime()
 

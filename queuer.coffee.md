@@ -21,38 +21,41 @@ Call Pool
 ---------
 
       class CallPool extends RedisClient
-        constructor: (queuer,name) ->
+        constructor: (queuer,domain,name) ->
           throw new Error 'CallPool requires queuer' unless queuer?.is_a_queuer?()
-          debug 'new CallPool', name
-          super 'CP', name
+          throw new Error 'CallPool requires domain' unless domain?
+          debug 'new CallPool', domain, name
+          super 'CP', "#{domain}-#{name}"
           @queuer = queuer
+          @domain = domain
           @name = name
 
         interface: redis_interface
 
         add: (call) ->
-          debug 'CallPool.add', @name, call.key
+          debug 'CallPool.add', @key, call.key
           if super call.key
             heal call.transition 'pool'
 
         remove: (call) ->
-          debug 'CallPool.remove', @name, call.key
+          debug 'CallPool.remove', @key, call.key
           if super call.key
             heal call.transition 'unpool'
 
         has: (call) ->
-          debug 'CallPool.has', @name, call.key
+          debug 'CallPool.has', @key, call.key
           super call.key
 
         calls: seem ->
-          debug 'CallPool.all', @key
+          debug 'CallPool.calls', @key
           result = []
           queuer = @queuer
+          domain = @domain
           yield @forEach seem (key) ->
-            call = new Call queuer, {key}
+            call = new Call queuer, domain, {key}
             yield call.load()
             result.push call
-          debug 'CallPool.all', @key, result.map (c) -> c.key
+          debug 'CallPool.calls', @key, result.map (c) -> c.key
           result
 
 Available agents
@@ -60,27 +63,29 @@ Available agents
 
       class AgentPool extends RedisClient
 
-        constructor: (queuer,name) ->
+        constructor: (queuer,domain,name) ->
           throw new Error 'AgentPool requires queuer' unless queuer?.is_a_queuer?()
-          debug 'new AgentPool'
-          super 'AP', name
+          throw new Error 'AgentPool requires domain' unless domain?
+          debug 'new AgentPool', domain, name
+          super 'AP', "#{domain}-#{name}"
           @queuer = queuer
+          @domain = domain
           @name = name
 
         interface: redis_interface
 
         add: seem (agent) ->
-          debug 'AgentPool.add', agent.key
+          debug 'AgentPool.add', @key, agent.key
           score = yield agent.get_missed().catch -> 0.0
           score += Math.random()/100
           @sorted_add agent.key, score
 
         remove: (agent) ->
-          debug 'AgentPool.remove', agent.key
+          debug 'AgentPool.remove', @key, agent.key
           @sorted_remove agent.key
 
         reevaluate: seem (cb) ->
-          debug 'AgentPool.reevaluate'
+          debug 'AgentPool.reevaluate', @key
           queuer = @queuer
           yield @sorted_forEach seem (key) ->
             debug 'AgentPool.reevaluate', key
@@ -120,10 +125,16 @@ For a given agent, their pool of ingress-calls-to-handle is therefor a subset of
 
         constructor: ->
           debug 'new Queuer'
-          @ingress_pool = new CallPool this, 'ingress'
-          @egress_pool = new CallPool this, 'egress'
-          @available_agents = new AgentPool this, 'available'
           @__timers = {}
+
+        ingress_pool: (domain) ->
+          new CallPool this, domain, 'ingress'
+
+        egress_pool: (domain) ->
+          new CallPool this, domain, 'egress'
+
+        available_agents: (domain) ->
+          new AgentPool this, domain, 'available'
 
 Monitor a call
 --------------
@@ -207,7 +218,7 @@ The call leg might be connected to an agent.
             b_uuid = body['Bridge-B-Unique-ID']
             disposition = body?.variable_transfer_disposition
 
-            b_call = new Call self, id:b_uuid
+            b_call = new Call self, a_call.domain, id:b_uuid
 
             yield a_call.load()
             a_agent_key = yield a_call.get_local_agent()
@@ -231,7 +242,7 @@ Let each call-leg know which agent it is connected to. (This includes _not_ bein
             b_uuid = body['Bridge-B-Unique-ID']
             disposition = body?.variable_transfer_disposition
 
-            b_call = new Call self, id:b_uuid
+            b_call = new Call self, a_call.domain, id:b_uuid
 
             yield a_call.load()
             a_agent_key = yield a_call.get_local_agent()
@@ -418,8 +429,9 @@ We need to send the call to the agent (using either onhook or offhook mode).
 Ingress pool
 
           debug 'Queuer.__evaluate_agent: ingress pool', agent.key
+          ingress_pool = @ingress_pool agent.domain
 
-          remote_call = yield build_call.call(this,@ingress_pool).catch (error) ->
+          remote_call = yield build_call.call(this,ingress_pool).catch (error) ->
             debug.ops 'Queuer.__evaluate_agent: ingress pool, error in build_call', error.stack ? error.toString()
             null
 
@@ -427,7 +439,7 @@ Ingress pool
 
             debug 'Queuer.__evaluate_agent: ingress pool, got client call', agent.key
 
-            answered = yield send_to_agent.call(this, @ingress_pool, remote_call).catch (error) ->
+            answered = yield send_to_agent.call(this, ingress_pool, remote_call).catch (error) ->
               debug.ops 'Queuer.__evaluate_agent: ingress pool, error in send_to_agent', error.stack ? error.toString()
               null
 
@@ -441,8 +453,9 @@ Ingress pool
 Egress pool
 
           debug 'Queuer.__evaluate_agent: egress pool', agent.key
+          egress_pool = @egress_pool agent.domain
 
-          remote_call = yield build_call.call(this,@egress_pool).catch (error) ->
+          remote_call = yield build_call.call(this,egress_pool).catch (error) ->
             debug.ops 'Queuer.__evaluate_agent: egress pool, error in build_call', error.stack ? error.toString()
             null
 
@@ -452,9 +465,9 @@ Egress pool
 
 We forcibly remove the call so that we do not end up ringing the same prospect/customer twice, esp. if in the first case there was no agent available.
 
-            yield @egress_pool.remove remote_call
+            yield egress_pool.remove remote_call
 
-            answered = yield send_to_agent.call(this, @egress_pool, remote_call).catch (error) ->
+            answered = yield send_to_agent.call(this, egress_pool, remote_call).catch (error) ->
               debug.ops 'Queuer.__evaluate_agent: egress pool, error in send_to_agent', error.stack ? error.toString()
               null
 
@@ -475,12 +488,12 @@ No call
           debug 'Queuer.queue_ingress_call', call.key
           yield call.set_poolable()
           yield @monitor_remote_call call
-          yield @ingress_pool.add call
+          yield @ingress_pool(call.domain).add call
 
-        __transition_available_agents: seem (event) ->
-          debug 'Queuer.__transition_available_agents: start', {event}
+        __transition_available_agents: seem (event,domain) ->
+          debug 'Queuer.__transition_available_agents: start', {domain,event}
           yield nextTick()
-          @available_agents.reevaluate hand (agent) ->
+          @available_agents(domain).reevaluate hand (agent) ->
             yield nextTick()
             debug 'Queuer.__transition_available_agents for agent', {agent: agent.key, event}
             agent.transition event
@@ -497,7 +510,7 @@ The call instance is created using data found e.g. in a database, the (egress) c
             debug 'Queuer.create_egress_call_for: queue egress call', agent.key, call.key
             yield call.set_poolable()
             yield agent.transition 'created'
-            yield @egress_pool.add call
+            yield @egress_pool(call.domain).add call
           else
             debug 'Queuer.create_egress_call_for: no call', agent.key
             yield agent.transition 'not_created'
@@ -510,9 +523,9 @@ Only states were the agent might transition via `evaluate` are considered as sta
 
           switch state
             when 'idle', 'waiting'
-              yield @available_agents.add agent
+              yield @available_agents(agent.domain).add agent
             else
-              yield @available_agents.remove agent
+              yield @available_agents(agent.domain).remove agent
 
           switch state
             when 'logged_out'
@@ -539,20 +552,23 @@ If the agent is idle, move forward in the background.
           {state} = data
           debug 'Queuer.on_call', call.key, state
 
+          ingress_pool = @ingress_pool call.domain
+          egress_pool = @egress_pool call.domain
+
           switch state
 
             when 'new' # aka `forgotten`
               if yield call.poolable()
-                yield heal @ingress_pool.add call
+                yield heal ingress_pool.add call
               else
                 debug.dev 'Ignoring non-poolable call', call.key
 
             when 'pooled'
-              heal @__transition_available_agents 'new_call'
+              heal @__transition_available_agents 'new_call', call.domain
 
             when 'bridged'
-              yield @ingress_pool.remove call
-              yield @egress_pool.remove call
+              yield ingress_pool.remove call
+              yield egress_pool.remove call
 
               yield call.set_answered()
 
@@ -567,8 +583,8 @@ Do not automatically close the agent's call (in `dropped`) when a remote party h
               yield call.clear()
 
             when 'dropped'
-              yield @ingress_pool.remove call
-              yield @egress_pool.remove call
+              yield ingress_pool.remove call
+              yield egress_pool.remove call
               yield call.unbridge_except()
 
           return
