@@ -97,29 +97,20 @@ Create a new profile
 Handle transitions
 ------------------
 
-      lock: seem ->
-        offset = Math.ceil 1000000 * Math.random()
-
-        yield sleep 20 * Math.random()
-
-        count = 7
-        while count-- > 0
-          before = yield @incr 'lock', offset
-          return yes if before is offset
-          yield sleep 20 * Math.random()
-        return no
-
       transition: seem (event, notification_data = {}) ->
         debug 'Call.transition', {call: @key, event}
         yield @load()
 
         old_state = yield @state()
-        old_state ?= initial_state
+
+        unless old_state?
+          yield @transition_state old_state, initial_state
+          old_state = initial_state
 
         debug 'Call.transition', {call: @key, event, old_state}
 
         unless old_state of _transition
-          yield @set_state initial_state
+          yield @transition_state old_state, initial_state
           throw new Error "Invalid state, transition from #{old_state} → event #{event}"
 
         unless event of _transition[old_state]
@@ -131,14 +122,12 @@ Handle transitions
         @queuer.clear_timer @key
 
         unless new_state of _transition
-          yield @set_state initial_state
+          yield @transition_state old_state, initial_state
           throw new Error "Invalid state machine, transition from #{old_state} → event #{event} leads to unknown state #{new_state}"
 
         debug 'Call.transition', {call: @key, event, old_state, new_state}
         if new_state?
-          yield @set_state new_state
-
-          yield @reset 'lock'
+          yield @transition_state old_state, new_state
 
           notification_data.old_state = old_state
           notification_data.state = new_state
@@ -386,12 +375,6 @@ with the gentones notifications.
       presenting: seem ->
         count = yield @count()
         count > 0
-
-      state: ->
-        @get 'state'
-
-      set_state: (state) ->
-        @set 'state', state
 
       answered: ->
         @get 'answered'

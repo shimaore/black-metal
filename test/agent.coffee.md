@@ -81,25 +81,33 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
       Queuer = (require '../queuer') redis_interface, Agent: TestAgent, Call: TestCall
 
       cleanup = seem ->
+        yield redis.del 'agent-lalala@test-s'
         yield redis.del 'agent-lalala@test-S'
         yield redis.del 'agent-lalala@test-P'
         yield redis.del 'agent-lalala@test-Z'
+
+        yield redis.del 'agent-lululu@test-s'
         yield redis.del 'agent-lululu@test-S'
         yield redis.del 'agent-lululu@test-P'
         yield redis.del 'agent-lululu@test-Z'
+
+        yield redis.del 'agent-lalilo@test-s'
         yield redis.del 'agent-lalilo@test-S'
         yield redis.del 'agent-lalilo@test-P'
         yield redis.del 'agent-lalilo@test-Z'
+
+        yield redis.del 'agent-laloli@test-s'
         yield redis.del 'agent-laloli@test-S'
         yield redis.del 'agent-laloli@test-P'
         yield redis.del 'agent-laloli@test-Z'
+
         yield redis.del 'AP-available@test-Z'
         yield redis.del 'CP-test-ingress-S'
         yield redis.del 'CP-test-egress-S'
         yield redis.del 'call-1234-P'
         yield redis.del 'call-1234-S'
 
-      before cleanup
+      beforeEach cleanup
 
       it 'should increment external calls', seem ->
         queuer = new Queuer()
@@ -117,7 +125,8 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         ok.should.be.true
         yield sleep 700
         (yield agent.get_missed()).should.be.a 'number'
-        (yield redis.hget 'agent-lalala@test-P', 'state').should.equal 'waiting'
+        (yield redis.get 'agent-lalala@test-s').should.equal 'waiting'
+        (yield agent.state()).should.equal 'waiting'
         (yield redis.zrank 'AP-test-available-Z', 'lalala@test').should.be.a 'number'
         (yield redis.zrank 'AP-test-available-Z', 'lalala@test').should.be.within 0, 1
         ok = yield agent.transition 'logout'
@@ -135,11 +144,15 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         ok = yield agent2.transition 'login'
         ok.should.be.true
         yield sleep 700
-        (yield redis.hget 'agent-lululu@test-P', 'state').should.equal 'presenting'
-        (yield redis.hget 'agent-lalala@test-P', 'state').should.equal 'waiting'
+        (yield redis.get 'agent-lululu@test-s').should.equal 'presenting'
+        (yield agent2.state()).should.equal 'presenting'
+        (yield redis.get 'agent-lalala@test-s').should.equal 'waiting'
+        (yield agent1.state()).should.equal 'waiting'
         yield sleep 1800
-        (yield redis.hget 'agent-lululu@test-P', 'state').should.equal 'in_call'
-        (yield redis.hget 'agent-lalala@test-P', 'state').should.equal 'waiting'
+        (yield redis.get 'agent-lululu@test-s').should.equal 'in_call'
+        (yield agent2.state()).should.equal 'in_call'
+        (yield redis.get 'agent-lalala@test-s').should.equal 'waiting'
+        (yield agent1.state()).should.equal 'waiting'
         ok = yield agent1.transition 'logout'
         ok = yield agent2.transition 'logout'
         queuer.end()
@@ -155,20 +168,22 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         ok = yield laloli.transition 'login'
         ok.should.be.true
         yield sleep 700
-        (yield redis.hget 'agent-lalilo@test-P', 'state').should.equal 'waiting'
-        (yield redis.hget 'agent-laloli@test-P', 'state').should.equal 'waiting'
+        (yield redis.get 'agent-lalilo@test-s').should.equal 'waiting'
+        (yield lalilo.state()).should.equal 'waiting'
+        (yield redis.get 'agent-laloli@test-s').should.equal 'waiting'
+        (yield laloli.state()).should.equal 'waiting'
         call = new TestCall queuer, 'test', id:'1234'
         yield call.save()
         yield call.set_reference 'hello-again'
         yield queuer.queue_ingress_call call
         yield sleep 2500
         in_call = 0
-        in_call += 1 if (yield redis.hget 'agent-lalilo@test-P', 'state') is 'in_call'
-        in_call += 1 if (yield redis.hget 'agent-laloli@test-P', 'state') is 'in_call'
+        in_call += 1 if (yield redis.get 'agent-lalilo@test-s') is 'in_call'
+        in_call += 1 if (yield redis.get 'agent-laloli@test-s') is 'in_call'
         chai.expect(in_call).to.equal 1
         waiting = 0
-        waiting += 1 if (yield redis.hget 'agent-lalilo@test-P', 'state') is 'waiting'
-        waiting += 1 if (yield redis.hget 'agent-laloli@test-P', 'state') is 'waiting'
+        waiting += 1 if (yield redis.get 'agent-lalilo@test-s') is 'waiting'
+        waiting += 1 if (yield redis.get 'agent-laloli@test-s') is 'waiting'
         chai.expect(waiting).to.equal 1
         ok = yield lalilo.transition 'logout'
         ok = yield laloli.transition 'logout'

@@ -337,10 +337,6 @@ If no call was found the agent's state is unmodified.
               debug 'Queuer.__evaluate_agent build_call: no call found', agent.key
               return null
 
-            unless yield call.lock()
-              debug 'Queuer.__evaluate_agent build_call: call did not lock', agent.key, call.key
-              return null
-
             event = if call.broadcasting then 'broadcast' else 'handle'
             unless yield call.transition event
               debug 'Queuer.__evaluate_agent build_call: call did not transition to handled', agent.key, call.key
@@ -349,10 +345,6 @@ If no call was found the agent's state is unmodified.
 Transition the agent.
 
             debug 'Queuer.__evaluate_agent build_call: transition the agent', agent.key, call.key
-
-            unless yield agent.lock()
-              debug 'Queuer.__evaluate_agent build_call: agent did not lock', agent.key, call.key
-              return null
 
             if not yield agent.transition 'present', {call}
               debug 'Queuer.__evaluate_agent build_call: transition failed', agent.key, call.key
