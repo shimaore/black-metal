@@ -12,7 +12,7 @@ Policy
 The policy is:
 
     policy = seem (calls) ->
-      agent_state = yield @get_state()
+      agent_state = yield @state()
       agent_broadcast = yield @has_tag 'broadcast'
       agent_domain = @domain
       agent_key = @key
