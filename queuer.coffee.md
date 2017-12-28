@@ -180,6 +180,10 @@ In both cases the main goal is to keep track of the agent that might be connecte
             heal monitor?.end()
             monitor = null
 
+In case we get `UNBRIDGE` and `CHANNEL_COMPLETE` at the same time, let `UNBRIDGE` transition first.
+
+            yield nextTick()
+
             yield a_call.load()
 
             a_agent_key = yield a_call.get_local_agent()

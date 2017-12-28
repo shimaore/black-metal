@@ -214,6 +214,8 @@ Hangup on agent call (agent can be called or callee).
           monitor?.end()
           monitor = null
 
+          yield nextTick()
+
           yield self.set_onhook_call null
           call = yield self.get_remote_call().catch -> null
           switch disposition
