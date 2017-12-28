@@ -218,6 +218,8 @@ The call leg might be connected to an agent.
             b_uuid = body['Bridge-B-Unique-ID']
             disposition = body?.variable_transfer_disposition
 
+            yield a_call.load()
+
             b_call = new Call self, a_call.domain, id:b_uuid
 
             yield a_call.load()
@@ -241,6 +243,8 @@ Let each call-leg know which agent it is connected to. (This includes _not_ bein
             a_uuid = body['Bridge-A-Unique-ID']
             b_uuid = body['Bridge-B-Unique-ID']
             disposition = body?.variable_transfer_disposition
+
+            yield a_call.load()
 
             b_call = new Call self, a_call.domain, id:b_uuid
 
