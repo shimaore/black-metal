@@ -26,6 +26,10 @@ Keep these under the shortest state-machine timer, currently 59s.
       new Promise (resolve) ->
         setTimeout resolve, timeout
 
+    nextTick = ->
+      new Promise (resolve) ->
+        process.nextTick resolve
+
     class Call extends RedisClient
 
 The following field MUST be provided by an implementation class.
@@ -44,7 +48,7 @@ It should implement features similar to the ones found in the `api` object of `h
 Load an existing call profile back.
 
         if key?
-          debug 'new Call', key
+          debug 'new Call', domain, key
           super 'call', key
 
 Create a new profile
@@ -52,7 +56,7 @@ Create a new profile
         else
           unless destination? or id?
             throw new Error 'new Call: either destination or id is required'
-          debug 'new Call', destination, id
+          debug 'new Call', domain, destination, id
           super 'call', id ? make_id()
 
         @queuer = queuer
@@ -148,7 +152,8 @@ Handle transitions
               heal @transition 'timeout'
             @queuer.set_timer @key, setTimeout on_timeout, next_state.timeout_duration-500+1000*Math.random()
 
-          process.nextTick => heal @queuer.on_call this, notification_data
+          yield nextTick()
+          heal @queuer.on_call this, notification_data
 
           return true
         else

@@ -13,6 +13,10 @@ Agent
       new Promise (resolve) ->
         setTimeout resolve, timeout
 
+    nextTick = ->
+      new Promise (resolve) ->
+        process.nextTick resolve
+
     class Agent extends RedisClient
 
       constructor: (queuer,key) ->
@@ -186,7 +190,8 @@ Handle transitions
               heal @transition 'timeout'
             @queuer.set_timer @key, setTimeout on_timeout, next_state.timeout_duration-500+1000*Math.random()
 
-          process.nextTick => heal @queuer.on_agent this, notification_data
+          yield nextTick()
+          heal @queuer.on_agent this, notification_data
 
           return true
         else
@@ -216,7 +221,7 @@ Hangup on agent call (agent can be called or callee).
 
         monitor?.once 'CHANNEL_HANGUP_COMPLETE', hand ({body}) ->
           disposition = body?.variable_transfer_disposition
-          debug 'Agent.__monitor: CHANNEL_HANGUP_COMPLETE', @key, agent_call.key, disposition
+          debug 'Agent.__monitor: CHANNEL_HANGUP_COMPLETE', self.key, agent_call.key, disposition
           monitor?.end()
           monitor = null
 
@@ -241,7 +246,7 @@ Bridge on agent call (calling or called).
         monitor?.on 'CHANNEL_BRIDGE', hand ({body}) ->
           a_uuid = body['Bridge-A-Unique-ID']
           b_uuid = body['Bridge-B-Unique-ID']
-          debug 'Agent.__monitor: CHANNEL_BRIDGE', key, a_uuid, b_uuid
+          debug 'Agent.__monitor: CHANNEL_BRIDGE', self.key, a_uuid, b_uuid
 
           remote_call = self.new_call id:b_uuid
           yield remote_call.load()
@@ -257,7 +262,7 @@ Unbridge on agent call (calling or called).
           a_uuid = body['Bridge-A-Unique-ID']
           b_uuid = body['Bridge-B-Unique-ID']
           disposition = body.variable_transfer_disposition
-          debug 'Agent.__monitor: CHANNEL_UNBRIDGE', key, a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
+          debug 'Agent.__monitor: CHANNEL_UNBRIDGE', self.key, a_uuid, b_uuid, disposition, body.variable_endpoint_disposition
 
           remote_call = self.new_call id:b_uuid
           yield remote_call.load()
