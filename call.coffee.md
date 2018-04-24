@@ -485,6 +485,9 @@ If a call is transitioned back to `new` it means it got forgotten / is in overfl
         hungup: 'dropped'
         miss: 'dropped' # disappeared from system
         pool: 'pooled'
+
+I assume the following line is used by `queuer.set_agent` to track calls outside the queuer; and/or maybe to track agent_call (in `queuer.send_to_agent`). The event should probably be renamed / the two events be split (e.g. `send-to-agent` and `set-agent`). FIXME
+
         handle: 'handled'
         timeout: 'new' # forgotten
         timeout_duration: 97*seconds
@@ -504,7 +507,7 @@ Only pooled calls actually get considered.
 
       handled:
         bridge: 'bridged'
-        broadcast: 'handled'
+        broadcast: 'handled' # This allows multiple presentations of the same call.
         fail: 'dropped'
         hangup: 'dropped'
         transferred: 'dropped'
@@ -522,7 +525,7 @@ This might lead to multiple agents ringing even if the `broadcast` option is not
         transferred: 'dropped'
         hungup: 'dropped'
         miss: 'dropped' # disappeared from system
-        pool: 'pooled'
+        pool: 'pooled' # ?
         bridge: 'bridged' # more than one call bridged (e.g. during transfer)
         unbridge_ignore: 'bridged' # unbridge but other remain (definitely during transfers)
         unbridge: 'unbridged'

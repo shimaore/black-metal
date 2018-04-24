@@ -407,7 +407,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
             debug 'Queuer.__evaluate_agent send_to_agent: bridge', agent.key, call.key
 
             yield agent_call.set_local_agent agent.key
-            yield agent_call.transition 'handle'
+            yield agent_call.transition 'handle' # FIXME rename event, e.g. 'send-to-agent'
             unless yield call.bridge agent_call
               yield heal call.remove agent_call.id # undo what was done in `call.originate_internal`
               yield agent.set_remote_call null
@@ -615,7 +615,7 @@ The `call` is the agent-side call (not a remote-call).
 
           return unless call? and new_key?
 
-          yield call.transition 'handle'
+          yield call.transition 'handle' # FIXME rename event, e.g. `set-agent`
 
           old_key = yield call.get_remote_agent()
           return if old_key is new_key
