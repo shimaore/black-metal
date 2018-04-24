@@ -538,7 +538,7 @@ This might lead to multiple agents ringing even if the `broadcast` option is not
         bridge: 'bridged'
         pool: 'pooled'
         timeout: 'pooled' # forgotten
-        timeout_duration: 31*seconds
+        timeout_duration: 36*seconds
 
       dropped:
         pool: 'pooled' # on transfer
