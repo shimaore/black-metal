@@ -401,7 +401,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
               yield agent.set_remote_call null
               yield agent.incr_missed()
               yield agent.transition 'missed', {call,reason}
-              heal call.transition 'pool'
+              heal call.transition 'retry'
               return false
 
             debug 'Queuer.__evaluate_agent send_to_agent: bridge', agent.key, call.key

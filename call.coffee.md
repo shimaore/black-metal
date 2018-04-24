@@ -471,6 +471,7 @@ Events:
 - transferred: remote call, transferred locally
 - hungup: remote call, hungup by remote end
 - miss : disappeared from system
+- retry: call presented to agent, but agent missed the call
 - bridge
 - unbridge
 - unbridge_ignore
@@ -513,7 +514,7 @@ Only pooled calls actually get considered.
         transferred: 'dropped'
         hungup: 'dropped'
         miss: 'dropped' # disappeared from system
-        pool: 'pooled' # force re-try
+        retry: 'pooled' # force re-try
 
 This might lead to multiple agents ringing even if the `broadcast` option is not active, so we delay it a little.
 
@@ -537,10 +538,12 @@ This might lead to multiple agents ringing even if the `broadcast` option is not
         miss: 'dropped' # disappeared from system
         bridge: 'bridged'
         pool: 'pooled'
+        retry: 'pooled' # ?
         timeout: 'pooled' # forgotten
         timeout_duration: 36*seconds
 
       dropped:
         pool: 'pooled' # on transfer
+        retry: 'pooled' # ?
 
     module.exports = Call
