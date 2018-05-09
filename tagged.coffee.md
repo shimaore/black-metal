@@ -147,26 +147,23 @@ Other tags might be added by the application (for example to add caller-based ta
 
     Call = require './call'
 
-    class TaggedCall extends Call
+    TaggedCall = (queuer) ->
+      class TaggedCall extends QueuerCall(queuer,Agent)
 
-      constructor: (queuer,domain,opts) ->
-        super queuer, domain, opts
-        debug 'new TaggedCall'
-        @started_at = new Date().getTime()
+        constructor: (key) ->
+          super 'TaggedCall', key
+          debug 'new TaggedCall'
+          return
 
-      set_tags: seem (tags) ->
-        yield @clear_tags()
-        yield @add_tags tags
+        set_tags: seem (tags) ->
+          yield @clear_tags()
+          yield @add_tags tags
 
-      save: ->
-        super().then seem (self) ->
-          yield self.set 'started-at', self.started_at
-          self
+        set_started_at: ->
+          @set 'started-at', new Date().getTime()
 
-      load: ->
-        super().then seem (self) ->
-          self.started_at = yield self.get 'started-at'
-          self
+        get_started_at: ->
+          @get 'started-at'
 
 Tagged Agent
 ------------
