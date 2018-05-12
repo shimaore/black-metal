@@ -12,7 +12,7 @@ Agent
 
     class Agent extends RedisClient
 
-      queuer: null # must be defined
+      # queuer: null # must be defined
 
       constructor: (key) ->
         debug 'new Agent', key
@@ -56,7 +56,7 @@ Base features
           return
 
         if await @is_remote_call call
-          debug.dev 'Agent.on_bridge: Error: attempting to add the (queuer-managed) remote-call', @key, call.key
+          debug.dev 'Agent.on_bridge: attempting to add the (queuer-managed) remote-call (ignored)', @key, call.key
           return
 
         added = await @add call.key
@@ -111,7 +111,7 @@ Transfer-disposition values:
 
         if await @is_remote_call call
           debug 'Agent.on_unbridge (for remote call)', @key, call.key, disposition
-          await @clear_call remote_call
+          await @clear_call call
           if disposition isnt 'replaced'
             await @transition 'hangup', {call}
           return
@@ -124,13 +124,13 @@ Transfer-disposition values:
             when 'recv_replace', 'bridge'
               if await @transition 'agent_transfer', {call}
                 await @clear_call call
-              await agent_call.transition 'transferred'
+              await call.transition 'transferred'
             when 'replaced'
-              await agent_call.transition 'transferred'
+              await call.transition 'transferred'
             else
               if await @transition 'agent_hangup', {call}
                 await @disconnect_remote()
-              await agent_call.transition 'hungup'
+              await call.transition 'hungup'
 
           await @transition 'hangup'
           return
@@ -332,7 +332,7 @@ Tools
         @set_call 'onhook-call', onhook_call
 
       is_onhook_call: (call) ->
-        @is_call 'onhook-call'
+        @is_call 'onhook-call', call
 
 The remote-call should be a call leg, actively managed by the queuer, interesting this agent.
 It should _not_ be included in the list of connected calls outside the queuer (which is managed using `@add_call`, `@del_call`).

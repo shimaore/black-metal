@@ -250,19 +250,6 @@ with the gentones notifications.
         await @api "uuid_broadcast #{@key} gentones::%(100,20,600);%(100,0,400) aleg"
         await sleep 400
 
-      on_bridge: (b_call,data) ->
-        data ?= call: b_call
-        await @interface.add @__bridged_key, b_call.key
-        @transition 'bridge', data
-
-      on_unbridge: (b_call,disposition) ->
-        data = call: b_call
-        await @interface.remove @__bridged_key, b_call.key
-        if 0 is await @interface.count @__bridged_key
-          @transition 'unbridge', data
-        else
-          @transition 'unbridge_ignore', data
-
       hangup: ->
         debug 'Call.hangup', @key
         api_id = await @get_id()

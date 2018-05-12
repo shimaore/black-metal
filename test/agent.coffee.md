@@ -154,3 +154,53 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         ok = await laloli.transition 'logout'
         queuer.end()
         return
+
+      it 'should transition on events', ->
+        @timeout 5000
+        queuer = new Queuer()
+        lalilo = new TestAgent 'lalilo@test'
+        ok = await lalilo.transition 'login'
+        ok.should.be.true
+        await sleep 700
+        (await lalilo.state()).should.equal 'waiting'
+
+Create a new ingress call
+
+        call = new TestCall 'test'
+        await call.set_id '1234'
+        await call.set_domain 'test'
+        await call.set_reference 'hello-again'
+
+Queue the call
+
+        await queuer.queue_ingress_call call
+        await sleep 2500
+
+        agent_call = await lalilo.get_onhook_call()
+        agent_call.should.have.property 'key'
+        ## Not possible (yet?), agent transitions on response code from the API
+        # (await lalilo.state()).should.equal 'presenting'
+
+Answer the call
+
+        await call.on_bridge agent_call
+        (await lalilo.state()).should.equal 'in_call'
+
+Caller hangs up
+
+        await call.on_unbridge agent_call, 'hangup'
+        await sleep 250
+        (await lalilo.state()).should.equal 'wrap_up'
+
+        await call.on_hangup 'hangup'
+        await sleep 250
+        (await lalilo.state()).should.equal 'wrap_up'
+
+Agent hangs up
+
+        await agent_call.on_hangup 'hangup'
+        await sleep 250
+        (await lalilo.state()).should.equal 'waiting'
+
+        queuer.end()
+        return
