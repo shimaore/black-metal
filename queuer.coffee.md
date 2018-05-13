@@ -250,7 +250,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
             debug 'Queuer.__evaluate_agent send_to_agent: bridge', agent.key, call.key
 
             await agent_call.set_local_agent agent.key
-            await agent_call.transition 'handle' # FIXME rename event, e.g. 'send-to-agent'
+            await agent_call.transition 'sent_to_agent'
             unless await call.bridge agent_call
               await heal call.remove agent_call.key # undo what was done in `call.originate_internal`
               await agent.set_remote_call null
@@ -453,28 +453,18 @@ Switch agent
 ------------
 
 This is used by `huge-play` in order to track calls connected to an agent (especially outside the queuer).
-The `call` is the agent-side call (not a remote-call).
+The `call` is the agent-side leg (never a remote leg).
 
         set_agent: (call,new_key) ->
           debug 'Queuer.set_agent', call?.key, new_key
 
           return unless call? and new_key?
 
-          await call.transition 'handle' # FIXME rename event, e.g. `set-agent`
+          await call.transition 'set_agent'
 
           old_key = await call.get_remote_agent()
           return if old_key is new_key
           await call.set_local_agent new_key
-
-          ###
-          # I believe this is properly done by the new monitoring code.
-          if old_key?
-            old_agent = new Agent old_key
-            await old_agent.del_call call.id
-
-          new_agent = new Agent new_key
-          await new_agent.add_call call.id
-          ###
 
           return
 

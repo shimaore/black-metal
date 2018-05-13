@@ -10,6 +10,15 @@ Agent
 
     transition = require './agent-state-machine'
 
+Transfer-disposition values:
+- `recv_replace`: we transfered the call out (blind transfer). (REFER To)
+- `replaced`: we accepted an inbound, supervised-transfer call. (Attended Transfer on originating session.)
+- `bridge`: we transfered the call out (supervised transfer).
+
+    BLIND_TRANSFER = 'recv_replace'
+    SUPERVISED_TRANSFER = 'bridge'
+    ACCEPT_SUPERVISED_TRANSFER = 'replaced'
+
     class Agent extends RedisClient
 
       # queuer: null # must be defined
@@ -45,105 +54,159 @@ Base features
 
       on_bridge: (call,disposition) ->
         debug 'Agent.on_bridge', @key, call.key, disposition
-        return unless call?
 
-        if await @is_onhook_call call
-          debug 'Agent.on_bridge: onhook agent connected (ignored)', @key, call.key
-          return
+        switch
+          when await @is_remote_call call
+            debug.dev 'Agent.on_bridge: queuer-managed remote-call connected (ignored)', @key, call.key
 
-        if await @is_offhook_call call
-          debug 'Agent.on_bridge: offhook agent connected (ignored)', @key, call.key
-          return
+          when await @is_onhook_call call
+            debug 'Agent.on_bridge: onhook agent connected (ignored)', @key, call.key
 
-        if await @is_remote_call call
-          debug.dev 'Agent.on_bridge: attempting to add the (queuer-managed) remote-call (ignored)', @key, call.key
-          return
+          when await @is_offhook_call call
+            debug 'Agent.on_bridge: offhook agent connected (ignored)', @key, call.key
+            return
 
-        added = await @add call.key
+          else
+            added = await @add call.key
 
-        if added
-          debug 'Agent.on_bridge: added new call', @key, call.key
-          await @transition 'bridge', {call}
-        else
-          debug 'Agent.on_bridge: Error: call was already present', @key, call.key
+            if added
+              debug 'Agent.on_bridge: added new call', @key, call.key
+              await @transition 'bridge', {call}
+            else
+              debug.dev 'Agent.on_bridge: Error: call was already present', @key, call.key
+
         null
 
-### on-hangup / on-unbridge
+### on-unbridge
 
-Remove a call-leg from the list of connected call-legs.
+Unbridge might happens because of transfers or because of hang-up.
 
 Transfer-disposition values:
 - `recv_replace`: we transfered the call out (blind transfer). (REFER To)
 - `replaced`: we accepted an inbound, supervised-transfer call. (Attended Transfer on originating session.)
 - `bridge`: we transfered the call out (supervised transfer).
 
-      on_hangup: (call,disposition) ->
-        debug 'Agent.on_hangup', @key, call.key, disposition
-        # FIXME: this should only be forwarded to `on_unbridge` for calls that are not bridged (i.e. hangup during progress etc.).
-        await @on_unbridge call, disposition
-
       on_unbridge: (call,disposition) ->
         debug 'Agent.on_unbridge', @key, call.key, disposition
 
+Remove a call-leg from the list of connected call-legs.
+
         removed = await @remove call.key
 
-        if await @is_offhook_call call
-          debug 'Agent.on_unbridge (for offhook agent call)', @key, call.key, disposition
-          await @set_offhook_call null
+        switch
 
-          switch disposition
-            when 'recv_replace', 'bridge'
-              if await @transition 'agent_transfer', {call}
-                await @clear_call call
-              # await agent_call.transition 'transferred'
-            when 'replaced'
-              # await agent_call.transition 'transferred'
-              yes
+          when await @is_remote_call call
+            debug 'Agent.on_unbridge: queuer-manager remote call disconnected', @key, call.key, disposition
+            await @clear_call call
+            if disposition isnt ACCEPT_SUPERVISED_TRANSFER
+              await @transition 'hangup', {call}
+
+          when await @is_onhook_call call
+            debug 'Agent.on_unbridge: on-hook agent disconnected', @key, call.key, disposition
+
+            switch disposition
+              when BLIND_TRANSFER, SUPERVISED_TRANSFER
+                if await @transition 'agent_transfer', {call}
+                  await @clear_call call
+                await call.transition 'transferred'
+              when ACCEPT_SUPERVISED_TRANSFER
+                await call.transition 'transferred'
+              else
+                await call.transition 'hungup'
+
+          when await @is_offhook_call call
+            debug 'Agent.on_unbridge: off-hook agent disconnected', @key, call.key, disposition
+
+            switch disposition
+              when BLIND_TRANSFER, SUPERVISED_TRANSFER
+                if await @transition 'agent_transfer', {call}
+                  await @clear_call call
+                # await call.transition 'transferred'
+              when ACCEPT_SUPERVISED_TRANSFER
+                # await call.transition 'transferred'
+                yes
+              else
+                # await call.transition 'hungup'
+                no
+
+All calls are assumed to be "other calls".
+
+          else
+            debug 'Agent.on_unbridge: other call disconnected', @key, call.key, disposition
+
+            count = await @count()
+
+            if removed and count is 0
+              debug 'Agent.on_unbridge: last call was removed', @key, count, call.key, disposition
+              await @transition 'end_of_calls'
             else
-              if await @transition 'agent_hangup', {call}
-                await @disconnect_remote()
-              # await agent_call.transition 'hungup'
+              debug 'Agent.on_unbridge: calls left', @key, count, call.key, disposition
+              await @transition 'unbridge', {call}
 
-          await @transition 'hangup'
+        return
 
-          await @transition 'logout'
-          return
+### on-hangup
 
-        if await @is_remote_call call
-          debug 'Agent.on_unbridge (for remote call)', @key, call.key, disposition
-          await @clear_call call
-          if disposition isnt 'replaced'
-            await @transition 'hangup', {call}
-          return
+Transfer-disposition values:
+- `recv_replace`: we transfered the call out (blind transfer). (REFER To)
+- `replaced`: we accepted an inbound, supervised-transfer call. (Attended Transfer on originating session.)
+- `bridge`: we transfered the call out (supervised transfer).
 
-        if await @is_onhook_call call
-          debug 'Agent.on_unbridge (for onhook agent call)', @key, call.key, disposition
-          await @set_onhook_call null
+Note that `hangup` may happen in two cases:
+- the call is terminated before it ever gets connected (there are no bridge/unbridge events);
+- the call is terminated after it gets connected (there might have been multiple bridge/unbridge events).
 
-          switch disposition
-            when 'recv_replace', 'bridge'
-              if await @transition 'agent_transfer', {call}
-                await @clear_call call
-              await call.transition 'transferred'
-            when 'replaced'
-              await call.transition 'transferred'
-            else
-              if await @transition 'agent_hangup', {call}
-                await @disconnect_remote()
-              await call.transition 'hungup'
+      on_hangup: (call,disposition) ->
+        debug 'Agent.on_hangup', @key, call.key, disposition
 
-          await @transition 'hangup'
-          return
+        removed = await @remove call.key
 
-        count = await @count()
+        switch
 
-        if removed and count is 0
-          debug 'Agent.on_unbridge: last call was removed', @key, count, call.key, disposition
-          await @transition 'end_of_calls'
-        else
-          debug 'Agent.on_unbridge: calls left', @key, count, call.key, disposition
-          await @transition 'unbridge', {call}
-        null
+Remote call was hung up
+
+          when await @is_remote_call call
+            debug 'Agent.on_hangup: queuer-managed remote call hang up', @key, call.key, disposition
+            await @clear_call call
+            if disposition isnt ACCEPT_SUPERVISED_TRANSFER
+              await @transition 'hangup', {call}
+
+Onhook agent call was hung up
+
+          when await @is_onhook_call call
+            debug 'Agent.on_hangup: on-hook agent call hung up', @key, call.key, disposition
+            await @set_onhook_call null
+
+            switch disposition
+              when BLIND_TRANSFER, SUPERVISED_TRANSFER
+                no
+              when ACCEPT_SUPERVISED_TRANSFER
+                no
+              else
+                if await @transition 'agent_hangup', {call}
+                  await @disconnect_remote()
+            await @transition 'hangup'
+
+Offhook agent call was hung up
+
+          when await @is_offhook_call call
+            debug 'Agent.on_hangup: off-hook agent call hung up', @key, call.key, disposition
+            await @set_offhook_call null
+            switch disposition
+              when BLIND_TRANSFER, SUPERVISED_TRANSFER
+                no
+              when ACCEPT_SUPERVISED_TRANSFER
+                no
+              else
+                if await @transition 'agent_hangup', {call}
+                  await @disconnect_remote()
+            await @transition 'hangup'
+            await @transition 'logout'
+
+          else
+            debug 'Agent.on_hangup: other call hung up (ignored)', @key, call.key, disposition
+
+        return
 
 Handle transitions
 ------------------
@@ -223,6 +286,11 @@ For off-hook the call already exists.
 
 For on-hook we need to call the agent.
 
+        onhook_call = await @get_onhook_call()
+        if onhook_call?
+          throw new Error 'In originate_to_agent, agent already has an on-hook call'
+          return
+
         agent_call = new @Call make_id()
         await agent_call.set_domain @domain
         await agent_call.set_destination @key
@@ -292,7 +360,7 @@ Tools
           0
 
       get_call: (name) ->
-        debug 'get_call', name
+        debug 'get_call', @key, name
         key = await @get name
         if key?
           call = new @Call key
@@ -302,14 +370,18 @@ Tools
           null
 
       set_call: (name,call) ->
-        debug 'set_call', name
+        debug 'set_call', @key, name, call?.key
         if call?
           await @set name, call.key
+
+A `designated` call should never be in the list of active (connected) calls.
+
+          await @remove call.key
         else
           await @set name, null
 
       is_call: (name,call) ->
-        debug 'is_call', name
+        debug 'is_call', @key, name, call?.key
         if call?
           key = await @get name
           key? and call.key is key
@@ -335,7 +407,7 @@ Tools
         @is_call 'onhook-call', call
 
 The remote-call should be a call leg, actively managed by the queuer, interesting this agent.
-It should _not_ be included in the list of connected calls outside the queuer (which is managed using `@add_call`, `@del_call`).
+It should _not_ be included in the list of connected calls outside the queuer (which is managed using `@on_bridge`, `@on_unbridge`, `@on_hangup`).
 
       get_remote_call: ->
         @get_call 'remote-call'

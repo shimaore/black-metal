@@ -1,13 +1,16 @@
 Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
 
-    chai = require 'chai'
+    {expect} = chai = require 'chai'
     chai.should()
     debug = (require 'tangible') 'black-metal:test:agent'
 
     Redis = require 'ioredis'
     RedisInterface = require 'normal-key/interface'
 
+    EventEmitter = require 'events'
+
     sleep = (timeout) ->
+      debug 'sleep', timeout
       new Promise (resolve) -> setTimeout resolve, timeout
 
     describe 'The Agent', ->
@@ -178,8 +181,6 @@ Queue the call
 
         agent_call = await lalilo.get_onhook_call()
         agent_call.should.have.property 'key'
-        ## Not possible (yet?), agent transitions on response code from the API
-        # (await lalilo.state()).should.equal 'presenting'
 
 Answer the call
 
@@ -200,6 +201,113 @@ Agent hangs up
 
         await agent_call.on_hangup 'hangup'
         await sleep 250
+        (await lalilo.state()).should.equal 'waiting'
+
+        queuer.end()
+        return
+
+      it 'should handle multiple calls', ->
+        @timeout 15000
+
+        ev = new EventEmitter
+        private_api = (cmd) ->
+          new Promise (resolve) ->
+            ev.on 'agent_pickup', ->
+              resolve '+'
+        private_api.truthy = api.truthy
+        class PrivateTestCall extends TestCall
+          __api: private_api
+        PrivateQueuer = (require '../queuer') redis_interface, Agent: TestAgent, Call: PrivateTestCall
+
+        queuer = new PrivateQueuer()
+        lalilo = new TestAgent 'lalilo@test'
+        ok = await lalilo.transition 'login'
+        ok.should.be.true
+        await sleep 700
+        (await lalilo.state()).should.equal 'waiting'
+
+        debug 'Create two new ingress calls'
+
+        call1 = new PrivateTestCall 'test1'
+        await call1.set_id '1234'
+        await call1.set_domain 'test'
+        await call1.set_reference 'hello1'
+
+        call2 = new PrivateTestCall 'test2'
+        await call2.set_id '2345'
+        await call2.set_domain 'test'
+        await call2.set_reference 'hello2'
+
+        debug 'Queue the calls'
+
+        await queuer.queue_ingress_call call1
+        await queuer.queue_ingress_call call2
+        await sleep 2500
+
+        (await lalilo.state()).should.equal 'presenting'
+
+        debug 'Answer the first call'
+        ev.emit 'agent_pickup'
+        await sleep 500
+
+
+        agent_call = await lalilo.get_onhook_call()
+        agent_call.should.have.property 'key'
+
+        call = await lalilo.get_remote_call()
+        await call.on_bridge agent_call
+        (await lalilo.state()).should.equal 'in_call'
+
+        debug 'Caller hangs up'
+
+        await call.on_unbridge agent_call, 'hangup'
+        await sleep 500
+        (await lalilo.state()).should.equal 'wrap_up'
+
+        await call.on_hangup 'hangup'
+        await sleep 500
+        (await lalilo.state()).should.equal 'wrap_up'
+
+        debug 'Agent hangs up, is presented new call'
+
+        await agent_call.on_hangup 'hangup'
+        await sleep 500
+        (await lalilo.state()).should.equal 'presenting'
+        await sleep 2000 # because the queuer will wait 1.5s before actually presenting
+
+        debug 'Answer the second call'
+        ev.emit 'agent_pickup'
+        await sleep 500
+        (await lalilo.state()).should.equal 'in_call'
+        await sleep 2500
+        (await lalilo.state()).should.equal 'in_call'
+
+        debug 'Answer the second call'
+
+        old_call = call
+        call = await lalilo.get_remote_call()
+        call.should.not.equal old_call
+        await call.on_bridge agent_call
+        (await lalilo.state()).should.equal 'in_call'
+
+        agent_call = await lalilo.get_onhook_call()
+        agent_call.should.have.property 'key'
+
+        debug 'Caller hangs up: unbridge'
+
+        await call.on_unbridge agent_call, 'hangup'
+        await sleep 251
+        (await lalilo.state()).should.equal 'wrap_up'
+
+        debug 'Caller hangs up: hangup'
+        await call.on_hangup 'hangup'
+        await sleep 252
+        (await lalilo.state()).should.equal 'wrap_up'
+
+        debug 'Agent hangs up'
+
+        await agent_call.on_hangup 'hangup'
+        await sleep 253
         (await lalilo.state()).should.equal 'waiting'
 
         queuer.end()

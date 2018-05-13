@@ -147,6 +147,7 @@ where reason might be:
 - `RECOVERY_ON_TIMER_EXPIRE` - phone is unreachable
 - etc.
 
+        debug 'originate_internal returned', id, body
         connected = body?[0] is '+'
 
         if connected
@@ -318,10 +319,13 @@ with the gentones notifications.
       get_music: ->
         @get 'music'
 
-Local-Agent: the agent attached to this call leg. Can only be set once.
+Local-Agent: the agent attached to this call leg. Can only be set, once.
 
       set_local_agent: (agent_key) ->
         debug 'Call.set_local_agent', @key, agent_key
+        unless agent_key?
+          debug.dev 'Error: Can only set (not deleted) the local-agent', @key, agent_key
+          return
 
         current = await @get_local_agent()
         return if agent_key is current
