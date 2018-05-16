@@ -103,24 +103,30 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
       it 'should trigger call on idle', ->
         @timeout 4000
         queuer = new Queuer()
+        debug 'Agent1 (lalala) logs in'
         agent1 = new TestAgent 'lalala@test'
         ok = await agent1.transition 'login'
         ok.should.be.true
         await sleep 50
+        debug 'Agent2 (lululu) logs in'
         agent2 = new TestAgent 'lululu@test'
         ok = await agent2.transition 'login'
         ok.should.be.true
         await sleep 700
+        debug 'One of the agents should be receiving the call'
         (await redis.get 'agent-lululu@test-s').should.equal 'presenting'
         (await agent2.state()).should.equal 'presenting'
         (await redis.get 'agent-lalala@test-s').should.equal 'waiting'
         (await agent1.state()).should.equal 'waiting'
         await sleep 1800
+        debug 'One of the agents should be in-call'
         (await redis.get 'agent-lululu@test-s').should.equal 'in_call'
         (await agent2.state()).should.equal 'in_call'
         (await redis.get 'agent-lalala@test-s').should.equal 'waiting'
         (await agent1.state()).should.equal 'waiting'
+        debug 'Agent1 (lalala) logs out'
         ok = await agent1.transition 'logout'
+        debug 'Agent1 (lululu) logs out'
         ok = await agent2.transition 'logout'
         queuer.end()
         return

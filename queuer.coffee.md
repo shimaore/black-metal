@@ -21,7 +21,9 @@ Call Pool
 
       class CallPool extends RedisClient
         constructor: (queuer,domain,name) ->
+          ### istanbul ignore next ###
           throw new Error 'CallPool requires queuer' unless queuer?.is_a_queuer?()
+          ### istanbul ignore next ###
           throw new Error 'CallPool requires domain' unless domain?
           debug 'new CallPool', domain, name
           super 'CP', "#{domain}-#{name}"
@@ -33,11 +35,13 @@ Call Pool
 
         add: (call) ->
           debug 'CallPool.add', @key, call.key
+          ### istanbul ignore else ###
           if super call.key
             heal call.transition 'pool'
 
         remove: (call) ->
           debug 'CallPool.remove', @key, call.key
+          ### istanbul ignore else ###
           if super call.key
             heal call.transition 'unpool'
 
@@ -63,7 +67,9 @@ Available agents
       class AgentPool extends RedisClient
 
         constructor: (queuer,domain,name) ->
+          ### istanbul ignore next ###
           throw new Error 'AgentPool requires queuer' unless queuer?.is_a_queuer?()
+          ### istanbul ignore next ###
           throw new Error 'AgentPool requires domain' unless domain?
           debug 'new AgentPool', domain, name
           super 'AP', "#{domain}-#{name}"
@@ -194,7 +200,7 @@ If no call was found the agent's state is unmodified.
 
             event = if call.broadcasting then 'broadcast' else 'handle'
             unless await call.transition event
-              debug 'Queuer.__evaluate_agent build_call: call did not transition to handled', agent.key, call.key
+              debug 'Queuer.__evaluate_agent build_call: Error: call did not transition to handled', agent.key, call.key
               return null
 
 Transition the agent.
