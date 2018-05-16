@@ -258,7 +258,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
             await agent_call.set_local_agent agent.key
             await agent_call.transition 'sent_to_agent'
             unless await call.bridge agent_call
-              await heal call.remove agent_call.key # undo what was done in `call.originate_internal`
+              heal call.remove agent_call.key # undo what was done in `call.originate_internal`
               await agent.set_remote_call null
               await agent_call.hangup()
               await agent.transition 'failed', {call}
@@ -332,6 +332,8 @@ No call
           debug 'Queuer.__evaluate_agent: no call available, releasing', agent.key
           if await agent.transition 'release'
             await agent.park()
+          else
+            true
 
         queue_ingress_call: (call) ->
           debug 'Queuer.queue_ingress_call', call.key

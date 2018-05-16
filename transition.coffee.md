@@ -15,6 +15,7 @@ Handle transitions
 
         unless old_state of _transition
           await @transition_state old_state, initial_state
+          ### istanbul ignore next ###
           throw new Error "Invalid state, transition from #{old_state} → event #{event}"
 
         unless event of _transition[old_state]
@@ -27,6 +28,7 @@ Handle transitions
 
         unless new_state of _transition
           await @transition_state old_state, initial_state
+          ### istanbul ignore next ###
           throw new Error "Invalid state machine, transition from #{old_state} → event #{event} leads to unknown state #{new_state}"
 
         debug name, {@key, event, old_state, new_state}
