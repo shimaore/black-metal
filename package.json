@@ -8,6 +8,7 @@
     "prepublishOnly": "npm run build",
     "pretest": "npm install && npm run build && coffee -c test/*.coffee.md",
     "coverage": "nyc report --reporter=text-lcov | coveralls",
+    "coverage-html": "npm test && nyc report --reporter html",
     "test": "nyc mocha"
   },
   "repository": {

@@ -106,13 +106,13 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         ok = await agent2.transition 'login'
         ok.should.be.true
         await sleep 700
-        debug 'One of the agents should be receiving the call'
+        debug 'Agent2 (lululu) should be receiving a call'
         (await redis.get 'agent-lululu@test-s').should.equal 'presenting'
         (await agent2.state()).should.equal 'presenting'
         (await redis.get 'agent-lalala@test-s').should.equal 'waiting'
         (await agent1.state()).should.equal 'waiting'
-        await sleep 1800
-        debug 'One of the agents should be in-call'
+        await sleep 2000
+        debug 'Agent2 (lululu) should be in-call'
         (await redis.get 'agent-lululu@test-s').should.equal 'in_call'
         (await agent2.state()).should.equal 'in_call'
         (await redis.get 'agent-lalala@test-s').should.equal 'waiting'
