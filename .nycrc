@@ -1,0 +1,6 @@
+{
+    "reporter": ["text-lcov"],
+    "extension": [".coffee.md"],
+    "sourceMap": false,
+    "instrument": false
+}

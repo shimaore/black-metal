@@ -6,7 +6,7 @@
   "scripts": {
     "build": "npm install --only=dev && rm package-lock.json && coffee -c *.coffee.md",
     "prepublishOnly": "npm run build",
-    "pretest": "npm install && npm run build && coffee -c test/*.coffee.md",
+    "pretest": "npm install",
     "coverage": "nyc report --reporter=text-lcov | coveralls",
     "test": "nyc mocha"
   },
@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "chai": "^4.1.2",
+    "coffee-coverage": "^3.0.0",
     "coffeescript": "^2.3.0",
     "coveralls": "^3.0.1",
     "ioredis": "^3.2.2",
