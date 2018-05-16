@@ -18,11 +18,6 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
       after -> setTimeout (-> redis.end()), 10000
       redis_interface = new RedisInterface redis
 
-      policy = (calls) ->
-        debug 'policy_for…'
-        return null if @key is 'lalala@test'
-        calls[0]
-
       created = 0
       create_egress_call = ->
         debug 'create_egress_call for', @key
@@ -55,17 +50,15 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         set_endpoint: -> Promise.resolve yes
         add_in: -> Promise.resolve yes
 
-      Call = require '../call'
-      class TestCall extends Call
+      {TaggedCall,TaggedAgent} = require '../tagged'
+      class TestCall extends TaggedCall
         interface: redis_interface
         __api: api
         profile: profile
         Reference: Reference
 
-      Agent = require '../agent'
-      class TestAgent extends Agent
+      class TestAgent extends TaggedAgent
         interface: redis_interface
-        policy: policy
         create_egress_call: create_egress_call
 
       Queuer = (require '../queuer') redis_interface, Agent: TestAgent, Call: TestCall
