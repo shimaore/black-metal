@@ -25,9 +25,12 @@ Transfer-disposition values:
 
       constructor: (key) ->
         debug 'new Agent', key
+        # istanbul ignore next
         throw new Error 'Agent requires key' unless key?
         [number,domain] = key.split '@'
+        # istanbul ignore next
         throw new Error "Agent requires number: #{key}" unless number?
+        # istanbul ignore next
         throw new Error "Agent requires domain: #{key}" unless domain?
         super 'agent', key
         @key = key
