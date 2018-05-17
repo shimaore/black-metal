@@ -20,9 +20,9 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
 
       created = 0
       create_egress_call = ->
-        debug 'create_egress_call for', @key
         switch @key
           when 'lululu@test'
+            debug "create_egress_call for #{@key}"
             return null if created++ > 0
             call = new TestCall 'testing123'
             await call.set_domain 'test'
@@ -32,6 +32,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
             setTimeout (-> call.transition 'dropped'), 2500
             call
           else
+            debug "create_egress_call for #{@key} (ignored)"
             null
 
       api = ->
@@ -310,6 +311,85 @@ Agent hangs up
         await agent_call.on_hangup 'hangup'
         await sleep 253
         (await lalilo.state()).should.equal 'waiting'
+
+        queuer.end()
+        return
+
+
+      it 'should handle broadcast calls', ->
+        @timeout 40000
+
+        ev = new EventEmitter
+        private_api = (cmd) ->
+          new Promise (resolve) ->
+            if cmd.match /agent1@test/
+              ev.on 'agent_pickup', -> resolve '+'
+            if cmd.match /agent2@test/
+              ev.on 'agent_canceled', -> resolve '-FAIL Canceled'
+
+        private_api.truthy = (cmd) ->
+          debug 'private_api.truthy', cmd
+          if cmd.match /^uuid_exists/
+            return 'true'
+          if $ = cmd.match /^uuid_kill (\S+)$/
+            the_call = new PrivateTestCall $[1]
+            await the_call.on_hangup 'killed'
+            ev.emit 'agent_canceled'
+
+          true
+
+        class PrivateTestCall extends TestCall
+          __api: private_api
+        PrivateQueuer = (require '../queuer') redis_interface, Agent: TestAgent, Call: PrivateTestCall
+
+        queuer = new PrivateQueuer()
+
+        debug 'Create two agents'
+        agent1 = new TestAgent 'agent1@test'
+        ok = await agent1.transition 'login'
+        ok.should.be.true
+
+        agent2 = new TestAgent 'agent2@test'
+        ok = await agent2.transition 'login'
+        ok.should.be.true
+
+        await sleep 700
+        (await agent1.state()).should.equal 'waiting'
+        (await agent2.state()).should.equal 'waiting'
+
+        debug 'Create a broadcast ingress calls'
+
+        call = new PrivateTestCall 'broadcast-call'
+        await call.set_id '9999'
+        await call.set_domain 'test'
+        await call.set_reference 'hello-broadcast'
+        await call.add_tag 'broadcast'
+
+        debug 'Queue the call'
+
+        await queuer.queue_ingress_call call
+        await sleep 2500
+
+        debug 'agent1 should receive the call'
+        (await agent1.state()).should.equal 'presenting'
+        debug 'agent2 should receive the call'
+        (await agent2.state()).should.equal 'presenting'
+
+        debug 'Agent1 answers the call'
+        ev.emit 'agent_pickup'
+        await sleep 500
+
+        debug 'Bridge the call with agent1'
+        agent1_call = await agent1.get_onhook_call()
+        await call.on_bridge agent1_call
+        (await agent1.state()).should.equal 'in_call'
+        await sleep 1000
+
+        for second in [2..35]
+          await sleep 1000
+          debug "Verify state after #{second}s"
+          (await agent1.state()).should.equal 'in_call'
+          (await agent2.state()).should.equal 'waiting'
 
         queuer.end()
         return

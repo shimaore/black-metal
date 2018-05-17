@@ -3,7 +3,7 @@ Handle transitions
 
     transition = (name,initial_state,_transition) ->
       (event, notification_data = {}) ->
-        debug name, {@key, event}
+        debug "#{name}/#{@key} ↓#{event}"
 
         old_state = await @state()
 
@@ -11,7 +11,7 @@ Handle transitions
           await @transition_state old_state, initial_state
           old_state = initial_state
 
-        debug name, {@key, event, old_state}
+        debug "#{name}/#{@key} #{old_state} ↓#{event}"
 
         unless old_state of _transition
           await @transition_state old_state, initial_state
@@ -19,7 +19,7 @@ Handle transitions
           throw new Error "Invalid state, transition from #{old_state} → event #{event}"
 
         unless event of _transition[old_state]
-          debug "#{name}: Ignoring event #{event} in state #{old_state}", @key
+          debug "#{name}/#{@key} Ignoring event #{event} in state #{old_state}"
           return false
 
         new_state = _transition[old_state][event]
@@ -31,7 +31,7 @@ Handle transitions
           ### istanbul ignore next ###
           throw new Error "Invalid state machine, transition from #{old_state} → event #{event} leads to unknown state #{new_state}"
 
-        debug name, {@key, event, old_state, new_state}
+        debug "#{name}/#{@key} #{old_state} ↓#{event} →#{new_state}"
         if new_state?
           await @transition_state old_state, new_state
 

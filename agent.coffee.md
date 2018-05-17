@@ -285,26 +285,31 @@ For off-hook the call already exists.
 
         offhook_call = await @get_offhook_call()
         if offhook_call?
+          debug 'Agent.originate_to_agent: using offhook call', @key, offhook_call.key
           return offhook_call
 
 For on-hook we need to call the agent.
 
         onhook_call = await @get_onhook_call()
         if onhook_call?
-          throw new Error 'In originate_to_agent, agent already has an on-hook call'
-          return
+          debug 'Agent.originate_to_agent: trying to create a new onhook call when one already exists', @key, onhook_call.key
+          return reason: 'duplicate-onhook-call'
 
         agent_call = new @Call make_id()
         await agent_call.set_domain @domain
         await agent_call.set_destination @key
         await agent_call.set_local_agent @key
+        await @set_onhook_call agent_call
+
         remote = await @get_remote_call()
         reason = await agent_call.originate_internal remote
         if reason?
+          debug 'Agent.originate_to_agent failed', @key, agent_call.key, reason
+          await @set_onhook_call null
+          await @set_remote_call null
           return {reason}
 
-        await @set_onhook_call agent_call
-        agent_call
+        return agent_call
 
 Park an agent, indicating end-of-call + end-of-wrapup
 -----------------------------------------------------

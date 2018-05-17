@@ -23,6 +23,8 @@ The policy is:
 
         switch call_state
           when 'pooled'
+            call_broadcast = await call.broadcast()
+            call.broadcasting = call_broadcast
             yes
 
           when 'handled'
@@ -94,7 +96,9 @@ Do not make parallel attempts for calls that have no id (outbound calls).
           return -1
         (a_prio - b_prio) or waiting or fifo
 
-      sorted[0]
+      policed_call = sorted[0]
+      debug 'policy selected call', policed_call
+      policed_call
 
 Keep the highest priority value
 

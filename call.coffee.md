@@ -34,9 +34,13 @@ It should implement features similar to the ones found in the `api` object of `h
 
       api: (args...) -> @__api.truthy args...
 
-      set_destination: (destination) -> @set 'destination', destination
+      set_destination: (destination) ->
+        debug 'set_destination', @key, destination
+        @set 'destination', destination
       get_destination: -> @get 'destination'
-      set_id: (id) -> @set 'id', id
+      set_id: (id) ->
+        debug 'set_id', @key, id
+        @set 'id', id
       get_id: -> @get 'id'
 
       exists: ->
@@ -147,7 +151,7 @@ where reason might be:
 - `RECOVERY_ON_TIMER_EXPIRE` - phone is unreachable
 - etc.
 
-        debug 'originate_internal returned', id, body
+        debug 'originate_internal: originate returned', @key, id, body
         connected = body?[0] is '+'
 
         if connected
@@ -216,11 +220,16 @@ This is similar to what we do with `place-call` but we're calling the other way 
           return
 
       bridge: (agent_call) ->
-        debug 'QueuerCall.bridge', @key, agent_call.id
+        agent_call_id = await agent_call.get_id()
+        debug 'QueuerCall.bridge', @key, agent_call_id
+
+        ### istanbul ignore next ###
+        throw new Error "QueuerCall.bridge #{@key} (#{agent_call.key}) misses agent_call id" unless agent_call_id?
+
         await @api "uuid_break #{@key}"
-        await @api "uuid_broadcast #{agent_call.id} gentones::%(100,20,400);%(100,0,600) aleg"
+        await @api "uuid_broadcast #{agent_call_id} gentones::%(100,20,400);%(100,0,600) aleg"
         await sleep 400
-        await @api "uuid_bridge #{@key} #{agent_call.id}"
+        await @api "uuid_bridge #{@key} #{agent_call_id}"
 
 Remove all the matched calls, except maybe one.
 

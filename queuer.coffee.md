@@ -223,11 +223,11 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
             await call.originate_external()
 
-            debug 'Queuer.__evaluate_agent build_call: originate external returned', agent.key, call.key, call.id
+            debug 'Queuer.__evaluate_agent build_call: originate external returned', agent.key, call.key
 
             call_state = await call.state()
             unless call_state is 'handled'
-              debug 'Queuer.__evaluate_agent build_call: call state is not `handled`', agent.key, call.key, call.id, call_state
+              debug 'Queuer.__evaluate_agent build_call: call state is not `handled`', agent.key, call.key, call_state
               await agent.transition 'hangup', {call}
               return null
 
@@ -246,16 +246,17 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             {reason} = agent_call = await agent.originate_to_agent() # always from remote-call
 
-            if reason
+            debug 'Queuer.__evaluate_agent send_to_agent: originate returned', agent.key, call.key, agent_call?.key, reason
+
+            if reason?
               await agent.set_remote_call null
               await agent.incr_missed()
               await agent.transition 'missed', {call,reason}
               heal call.transition 'retry'
               return false
 
-            debug 'Queuer.__evaluate_agent send_to_agent: bridge', agent.key, call.key
+            debug 'Queuer.__evaluate_agent send_to_agent: bridge', agent.key, call.key, agent_call.key
 
-            await agent_call.set_local_agent agent.key
             await agent_call.transition 'sent_to_agent'
             unless await call.bridge agent_call
               heal call.remove agent_call.key # undo what was done in `call.originate_internal`
@@ -264,13 +265,14 @@ We need to send the call to the agent (using either onhook or offhook mode).
               await agent.transition 'failed', {call}
               return false
 
-            debug 'Queuer.__evaluate_agent send_to_agent: Successfully bridged', agent.key, call.key, call.id, agent_call.key
+            debug 'Queuer.__evaluate_agent send_to_agent: Successfully bridged', agent.key, call.key, agent_call.key
             await call.set_remote_agent agent.key
             await agent.transition 'answer', {call}
 
 ### Main body for `__evaluate_agent`
 
           some_call = await agent.get_remote_call()
+
           if some_call?
             debug.dev 'Error: Agent was idle/waiting but still had a remote call', agent.key, some_call.key
           await agent.set_remote_call null
