@@ -28,6 +28,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
             await call.set_domain 'test'
             await call.set_destination '33643482771'
             await call.set_reference 'hello-world'
+            await call.add_tag 'skill:sales'
             setTimeout (-> call.transition 'dropped'), 2500
             call
           else
@@ -103,6 +104,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         await sleep 50
         debug 'Agent2 (lululu) logs in'
         agent2 = new TestAgent 'lululu@test'
+        agent2.add_tag 'skill:sales'
         ok = await agent2.transition 'login'
         ok.should.be.true
         await sleep 700
