@@ -199,6 +199,11 @@ If no call was found the agent's state is unmodified.
               return null
 
             event = if call.broadcasting then 'broadcast' else 'handle'
+
+For broadcast calls, give the other agents a chance to progress as well.
+
+            await nextTick() if call.broadcasting
+
             unless await call.transition event
               debug 'Queuer.__evaluate_agent build_call: Error: call did not transition to handled', agent.key, call.key
               return null
