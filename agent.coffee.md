@@ -19,7 +19,12 @@ Transfer-disposition values:
     SUPERVISED_TRANSFER = 'bridge'
     ACCEPT_SUPERVISED_TRANSFER = 'replaced'
 
+    {EventEmitter2} = require 'eventemitter2'
+    events = new EventEmitter2()
+
     class Agent extends RedisClient
+
+      @events: events
 
       # queuer: null # must be defined
 
@@ -61,15 +66,19 @@ Base features
         switch
           when await @is_remote_call call
             debug.dev 'Agent.on_bridge: queuer-managed remote-call connected (ignored)', @key, call.key
+            events.emit [@key,'remote','bridge'], call
 
           when await @is_onhook_call call
             debug 'Agent.on_bridge: onhook agent connected (ignored)', @key, call.key
+            events.emit [@key,'onhook','bridge'], call
 
           when await @is_offhook_call call
             debug 'Agent.on_bridge: offhook agent connected (ignored)', @key, call.key
-            return
+            events.emit [@key,'offhook','bridge'], call
 
           else
+            events.emit [@key,'external','bridge'], call
+
             added = await @add call.key
 
             if added
@@ -77,6 +86,7 @@ Base features
               await @transition 'bridge', {call}
             else
               debug.dev 'Agent.on_bridge: Error: call was already present', @key, call.key
+
 
         null
 
@@ -100,12 +110,15 @@ Remove a call-leg from the list of connected call-legs.
 
           when await @is_remote_call call
             debug 'Agent.on_unbridge: queuer-manager remote call disconnected', @key, call.key, disposition
+            events.emit [@key,'remote','unbridge'], call, disposition
+
             await @clear_call call
             if disposition isnt ACCEPT_SUPERVISED_TRANSFER
               await @transition 'hangup', {call}
 
           when await @is_onhook_call call
             debug 'Agent.on_unbridge: on-hook agent disconnected', @key, call.key, disposition
+            events.emit [@key,'unhook','unbridge'], call, disposition
 
             switch disposition
               when BLIND_TRANSFER, SUPERVISED_TRANSFER
@@ -119,6 +132,7 @@ Remove a call-leg from the list of connected call-legs.
 
           when await @is_offhook_call call
             debug 'Agent.on_unbridge: off-hook agent disconnected', @key, call.key, disposition
+            events.emit [@key,'offhook','unbridge'], call, disposition
 
             switch disposition
               when BLIND_TRANSFER, SUPERVISED_TRANSFER
@@ -136,6 +150,7 @@ All calls are assumed to be "other calls".
 
           else
             debug 'Agent.on_unbridge: other call disconnected', @key, call.key, disposition
+            events.emit [@key,'external','unbridge'], call, disposition
 
             count = await @count()
 

@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "bluebird": "^3.5.1",
+    "eventemitter2": "^5.0.1",
     "normal-key": "^3.1.0",
     "screeching-eggs": "^1.0.1",
     "seem": "^2.0.0",

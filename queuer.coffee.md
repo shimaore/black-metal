@@ -472,8 +472,13 @@ The `call` is the agent-side leg (never a remote leg).
 
           await call.transition 'set_agent'
 
+Hmmm this obviously test for some condition on the remote agent (so probably while doing transfers), but it could use some description.
+
           old_key = await call.get_remote_agent()
           return if old_key is new_key
+
+Let the call know which agent it is connected to.
+
           await call.set_local_agent new_key
 
           return
