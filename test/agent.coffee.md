@@ -365,7 +365,7 @@ Agent hangs up
         await call.set_reference 'hello-broadcast'
         await call.add_tag 'broadcast'
 
-        debug 'Queue the call'
+        debug 'Queue the broadcast call'
 
         await queuer.queue_ingress_call call
         await sleep 2500

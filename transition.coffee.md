@@ -3,7 +3,10 @@ Handle transitions
 
     transition = (name,initial_state,_transition) ->
       (event, notification_data = {}) ->
+
         debug "#{name}/#{@key} ↓#{event}"
+
+        await nextTick()
 
         old_state = await @state()
 
