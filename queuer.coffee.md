@@ -346,6 +346,10 @@ No call
           debug 'Queuer.queue_ingress_call', call.key
           await call.set_poolable()
           domain = await call.get_domain()
+
+A call coming from an agent will already have gone through `set_agent` and be in the state `handled`. We reset it back.
+
+          await call.transition 'ingress'
           await @ingress_pool(domain).add call
 
         __transition_available_agents: (event,domain) ->

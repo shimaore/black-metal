@@ -12,6 +12,7 @@ Events:
 - fail
 - pool
 - unpool
+- ingress: external ingress call is placed into the queuer
 - hangup: local call, hungup locally
 - transferred: remote call, transferred locally
 - hungup: remote call, hungup by remote end
@@ -59,6 +60,7 @@ Only pooled calls actually get considered.
         hungup: 'dropped'
         miss: 'dropped' # disappeared from system
         retry: 'pooled' # force re-try
+        ingress: 'new' # external call goes through `queue_ingress_call`
 
 This might lead to multiple agents ringing even if the `broadcast` option is not active, so we delay it a little.
 
