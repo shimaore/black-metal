@@ -200,16 +200,10 @@ If no call was found the agent's state is unmodified.
 
             event = if call.broadcasting then 'broadcast' else 'handle'
 
-            falsey = (error) ->
-              debug "Queuer.__evaluate_agent build_call: Error: #{error}", agent.key, call.key, event, attempts
-              false
-
-            attempts = 3
-            until await call.transition(event).catch falsey
-              attempts--
-              debug 'Queuer.__evaluate_agent build_call: Error: call did not transition to handled', agent.key, call.key, event, attempts
-              return null unless attempts
-              await sleep 10*Math.random()
+            await sleep 10*Math.random()
+            unless await call.transition event
+              debug 'Queuer.__evaluate_agent build_call: Error: call did not transition to handled', agent.key, call.key, event
+              return null
 
 Transition the agent.
 
