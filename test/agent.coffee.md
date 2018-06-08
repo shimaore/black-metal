@@ -1,5 +1,3 @@
-Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
-
     {expect} = chai = require 'chai'
     chai.should()
     debug = (require 'tangible') 'black-metal:test:agent'
@@ -14,7 +12,7 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
       new Promise (resolve) -> setTimeout resolve, timeout
 
     describe 'The Agent', ->
-      redis = new Redis()
+      redis = new Redis host:'redis'
       after -> setTimeout (-> redis.end()), 10000
       redis_interface = new RedisInterface redis
 
