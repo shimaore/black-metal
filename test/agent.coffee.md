@@ -50,7 +50,6 @@ Precondition: `docker run -p 127.0.0.1:6379:6379 redis` (for example).
         get_domain: -> Promise.resolve 'handy-bear'
         get_source: -> Promise.resolve 'famous-candy'
         set_endpoint: -> Promise.resolve yes
-        add_in: -> Promise.resolve yes
 
       {TaggedCall,TaggedAgent} = require '../tagged'
       class TestCall extends TaggedCall

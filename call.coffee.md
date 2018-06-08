@@ -112,7 +112,6 @@ Agent in on-hook mode
 
         my_reference = new @Reference reference
         await my_reference.set_endpoint endpoint
-        await my_reference.add_in endpoint
 
         music = await caller.get_music()
 
