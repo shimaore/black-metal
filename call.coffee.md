@@ -357,7 +357,6 @@ Remote-Agent: the agent attached to another call leg, presumably bridged to this
           reference = await @get_reference()
           my_reference = new @Reference reference
           await my_reference.set_endpoint agent_key
-          await my_reference.add_in agent_key
 
         await @set 'remote-agent', agent_key
         return
