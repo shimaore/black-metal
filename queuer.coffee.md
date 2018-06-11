@@ -38,12 +38,18 @@ Call Pool
           ### istanbul ignore else ###
           if super call.key
             heal call.transition 'pool'
+            @queuer.notify "pool:#{@domain}:#{@name}", "call:#{call.key}",
+              event: 'add'
+              call: call
 
         remove: (call) ->
           debug 'CallPool.remove', @key, call.key
           ### istanbul ignore else ###
           if super call.key
             heal call.transition 'unpool'
+            @queuer.notify "pool:#{@domain}:#{@name}", "call:#{call.key}",
+              event: 'remove'
+              call: call
 
         has: (call) ->
           debug 'CallPool.has', @key, call.key
@@ -124,6 +130,8 @@ For a given agent, their pool of ingress-calls-to-handle is therefor a subset of
       class Queuer
 
         is_a_queuer: -> true
+
+        notify: (key,id,data) ->
 
         constructor: ->
           debug 'new Queuer'
