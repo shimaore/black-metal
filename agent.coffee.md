@@ -247,7 +247,7 @@ Commands to FreeSwitch
 
 Unbridge on agent call (calling or called).
 
-      on_dmtf: (digit) ->
+      on_dtmf: (digit) ->
         debug 'Agent.on_dtmf', @key, digit
         call = await @get_remote_call().catch -> null
         switch digit
