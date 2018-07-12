@@ -65,7 +65,7 @@ Base features
 
         switch
           when await @is_remote_call call
-            debug.dev 'Agent.on_bridge: queuer-managed remote-call connected (ignored)', @key, call.key
+            debug 'Agent.on_bridge: queuer-managed remote-call connected (ignored)', @key, call.key
             events.emit [@key,'remote','bridge'], call, disposition, our_call
 
           when await @is_onhook_call call
@@ -94,11 +94,6 @@ Base features
 
 Unbridge might happens because of transfers or because of hang-up.
 
-Transfer-disposition values:
-- `recv_replace`: we transfered the call out (blind transfer). (REFER To)
-- `replaced`: we accepted an inbound, supervised-transfer call. (Attended Transfer on originating session.)
-- `bridge`: we transfered the call out (supervised transfer).
-
       on_unbridge: (call,disposition,our_call) ->
         debug 'Agent.on_unbridge', @key, call.key, disposition, our_call?.key
 
@@ -112,18 +107,34 @@ Remove a call-leg from the list of connected call-legs.
             debug 'Agent.on_unbridge: queuer-manager remote call disconnected', @key, call.key, disposition
             events.emit [@key,'remote','unbridge'], call, disposition, our_call
 
-            await @clear_call call
-            if disposition isnt ACCEPT_SUPERVISED_TRANSFER
-              await @transition 'hangup', {call}
+            await @set_remote_call null
+            await call.set_remote_agent null
+
+            switch disposition
+              when BLIND_TRANSFER
+                debug.dev 'Agent.on_unbridge: unexpected BLIND_TRANSFER on remote_call'
+                no
+              when SUPERVISED_TRANSFER
+                debug.dev 'Agent.on_unbridge: unexpected SUPERVISED_TRANSFER on remote_call'
+                no
+              when ACCEPT_SUPERVISED_TRANSFER
+                debug.dev 'Agent.on_unbridge: unexpected ACCEPT_SUPERVISED_TRANSFER on remote_call'
+                no
+              else
+                await @transition 'unbridge', {call}
 
           when await @is_onhook_call call
             debug 'Agent.on_unbridge: on-hook agent disconnected', @key, call.key, disposition
             events.emit [@key,'unhook','unbridge'], call, disposition, our_call
 
             switch disposition
-              when BLIND_TRANSFER, SUPERVISED_TRANSFER
+              when BLIND_TRANSFER
                 if await @transition 'agent_transfer', {call}
-                  await @clear_call call
+                  await call.set_remote_agent null
+                await call.transition 'transferred'
+              when SUPERVISED_TRANSFER
+                if await @transition 'agent_transfer', {call}
+                  await call.set_remote_agent null
                 await call.transition 'transferred'
               when ACCEPT_SUPERVISED_TRANSFER
                 await call.transition 'transferred'
@@ -135,9 +146,13 @@ Remove a call-leg from the list of connected call-legs.
             events.emit [@key,'offhook','unbridge'], call, disposition, our_call
 
             switch disposition
-              when BLIND_TRANSFER, SUPERVISED_TRANSFER
+              when BLIND_TRANSFER
                 if await @transition 'agent_transfer', {call}
-                  await @clear_call call
+                  await call.set_remote_agent null
+                # await call.transition 'transferred'
+              when SUPERVISED_TRANSFER
+                if await @transition 'agent_transfer', {call}
+                  await call.set_remote_agent null
                 # await call.transition 'transferred'
               when ACCEPT_SUPERVISED_TRANSFER
                 # await call.transition 'transferred'
@@ -165,11 +180,6 @@ All calls are assumed to be "other calls".
 
 ### on-hangup
 
-Transfer-disposition values:
-- `recv_replace`: we transfered the call out (blind transfer). (REFER To)
-- `replaced`: we accepted an inbound, supervised-transfer call. (Attended Transfer on originating session.)
-- `bridge`: we transfered the call out (supervised transfer).
-
 Note that `hangup` may happen in two cases:
 - the call is terminated before it ever gets connected (there are no bridge/unbridge events);
 - the call is terminated after it gets connected (there might have been multiple bridge/unbridge events).
@@ -185,9 +195,19 @@ Remote call was hung up
 
           when await @is_remote_call call
             debug 'Agent.on_hangup: queuer-managed remote call hang up', @key, call.key, disposition
-            await @clear_call call
-            if disposition isnt ACCEPT_SUPERVISED_TRANSFER
-              await @transition 'hangup', {call}
+            await call.set_remote_agent null
+            switch disposition
+              when BLIND_TRANSFER
+                debug.dev 'Agent.on_hangup: unexpected BLIND_TRANSFER on remote_call'
+                no
+              when SUPERVISED_TRANSFER
+                debug.dev 'Agent.on_hangup: unexpected SUPERVISED_TRANSFER on remote_call'
+                no
+              when ACCEPT_SUPERVISED_TRANSFER
+                debug.dev 'Agent.on_hangup: unexpected ACCEPT_SUPERVISED_TRANSFER on remote_call'
+                no
+              else
+                await @transition 'hangup', {call}
 
 Onhook agent call was hung up
 
@@ -196,9 +216,16 @@ Onhook agent call was hung up
             await @set_onhook_call null
 
             switch disposition
-              when BLIND_TRANSFER, SUPERVISED_TRANSFER
-                no
+              when BLIND_TRANSFER
+                if await @transition 'agent_transfer', {call}
+                  await call.set_remote_agent null
+                await call.transition 'transferred'
+              when SUPERVISED_TRANSFER
+                if await @transition 'agent_transfer', {call}
+                  await call.set_remote_agent null
+                await call.transition 'transferred'
               when ACCEPT_SUPERVISED_TRANSFER
+                debug.dev 'Agent.on_hangup: unexpected ACCEPT_SUPERVISED_TRANSFER on onhook_call'
                 no
               else
                 if await @transition 'agent_hangup', {call}
@@ -211,9 +238,14 @@ Offhook agent call was hung up
             debug 'Agent.on_hangup: off-hook agent call hung up', @key, call.key, disposition
             await @set_offhook_call null
             switch disposition
-              when BLIND_TRANSFER, SUPERVISED_TRANSFER
+              when BLIND_TRANSFER
+                debug.dev 'Agent.on_hangup: unexpected BLIND_TRANSFER on offhook_call'
+                no
+              when SUPERVISED_TRANSFER
+                debug.dev 'Agent.on_hangup: unexpected SUPERVISED_TRANSFER on remote_call'
                 no
               when ACCEPT_SUPERVISED_TRANSFER
+                debug.dev 'Agent.on_hangup: unexpected ACCEPT_SUPERVISED_TRANSFER on offhook_call'
                 no
               else
                 if await @transition 'agent_hangup', {call}
@@ -359,12 +391,8 @@ Notify start of wrapup time to an agent
         current_call = await @get_remote_call()
         if current_call?
           await current_call.hangup()
-          await @clear_call current_call
-
-      clear_call: (remote_call) ->
-        return unless remote_call?
-        await remote_call.set_remote_agent null
-        await @set_remote_call null
+          await current_call.set_remote_agent null
+          await @set_remote_call null
 
 Tools
 -----
