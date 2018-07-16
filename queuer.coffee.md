@@ -421,6 +421,10 @@ If the agent is idle, move forward in the background.
           debug 'Queuer.on_call', call.key, state
 
           domain = await call.get_domain()
+          unless domain?
+            debug 'Queuer.on_call: no domain, ignoring', call.key, state
+            return
+
           ingress_pool = @ingress_pool domain
           egress_pool = @egress_pool domain
 
