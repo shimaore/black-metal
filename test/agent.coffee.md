@@ -329,8 +329,10 @@ Agent hangs up
           if cmd.match /^uuid_exists/
             return 'true'
           if $ = cmd.match /^uuid_kill (\S+)$/
+            await sleep 10
             the_call = new PrivateTestCall $[1]
             await the_call.on_hangup 'killed'
+            await sleep 10
             ev.emit 'agent_canceled'
 
           true
