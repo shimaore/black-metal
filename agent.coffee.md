@@ -155,6 +155,7 @@ Remove a call-leg from the list of connected call-legs.
                   await call.set_remote_agent null
                 # await call.transition 'transferred'
               when ACCEPT_SUPERVISED_TRANSFER
+                debug.dev 'Agent.on_unbridge: unexpected ACCEPT_SUPERVISED_TRANSFER on onhook_call'
                 # await call.transition 'transferred'
                 yes
               else
@@ -195,7 +196,10 @@ Remote call was hung up
 
           when await @is_remote_call call
             debug 'Agent.on_hangup: queuer-managed remote call hang up', @key, call.key, disposition
+
+            await @set_remote_call null
             await call.set_remote_agent null
+
             switch disposition
               when BLIND_TRANSFER
                 debug.dev 'Agent.on_hangup: unexpected BLIND_TRANSFER on remote_call'
@@ -213,6 +217,7 @@ Onhook agent call was hung up
 
           when await @is_onhook_call call
             debug 'Agent.on_hangup: on-hook agent call hung up', @key, call.key, disposition
+
             await @set_onhook_call null
 
             switch disposition
@@ -230,13 +235,14 @@ Onhook agent call was hung up
               else
                 if await @transition 'agent_hangup', {call}
                   await @disconnect_remote()
-            await @transition 'hangup'
 
 Offhook agent call was hung up
 
           when await @is_offhook_call call
             debug 'Agent.on_hangup: off-hook agent call hung up', @key, call.key, disposition
+
             await @set_offhook_call null
+
             switch disposition
               when BLIND_TRANSFER
                 debug.dev 'Agent.on_hangup: unexpected BLIND_TRANSFER on offhook_call'
@@ -248,10 +254,8 @@ Offhook agent call was hung up
                 debug.dev 'Agent.on_hangup: unexpected ACCEPT_SUPERVISED_TRANSFER on offhook_call'
                 no
               else
-                if await @transition 'agent_hangup', {call}
+                if await @transition 'logout', {call}
                   await @disconnect_remote()
-            await @transition 'hangup'
-            await @transition 'logout'
 
           else
             debug 'Agent.on_hangup: other call hung up (ignored)', @key, call.key, disposition
@@ -353,7 +357,7 @@ For on-hook we need to call the agent.
         if reason?
           debug 'Agent.originate_to_agent failed', @key, agent_call.key, reason
           await @set_onhook_call null
-          await @set_remote_call null
+          await @set_remote_call null # should be dup from on_hangup
           return {reason}
 
         return agent_call

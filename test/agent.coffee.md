@@ -388,7 +388,7 @@ Agent hangs up
           await sleep 1000
           debug "Verify state after #{second}s"
           (await agent1.state()).should.equal 'in_call'
-          (await agent2.state()).should.equal 'waiting'
+          (await agent2.state()).should.be.oneOf ['away','waiting']
 
         queuer.end()
         return
