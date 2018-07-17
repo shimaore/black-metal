@@ -217,6 +217,11 @@ Transition the agent.
 
             debug 'Queuer.on_idle_agent build_call: transitioned', agent.key, call.key
 
+Let the call know we'll be taking care of it (soon).
+This prevents transitioning with `retry` on broadcast calls.
+
+            await call.incr 'handlers', 1
+
 Wait a little bit (this is meant to give a popup some time to settle).
 
             debug 'Queuer.on_idle_agent build_call: waiting for 1.5s before originate_external', agent.key, call.key
@@ -238,6 +243,7 @@ For a dial-in (ingress) call we already have the proper call UUID.
 Notify the agent of the caller's state.
 
             await agent.set_remote_call call
+
             return call
 
 ### Send to Agent
@@ -256,7 +262,9 @@ We need to send the call to the agent (using either onhook or offhook mode).
               await agent.set_remote_call null # duplicate of agent.on_hangup, but simplifies
               await agent.incr_missed()
               await agent.transition 'missed', {call,reason}
-              heal call.transition 'retry'
+              handlers = await call.incr 'handlers', -1
+              if handlers <= 0
+                heal call.transition 'retry'
               return false
 
             debug 'Queuer.on_idle_agent send_to_agent: bridge', agent.key, call.key, agent_call.key
@@ -423,6 +431,7 @@ If the agent is idle, move forward in the background.
           switch state
 
             when 'new' # aka `forgotten`
+              await call.set 'handlers', 0
               if await call.poolable()
                 await heal ingress_pool.add call
               else
