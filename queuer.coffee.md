@@ -162,9 +162,6 @@ When an agent moves to the `idle` state, the queuer picks one call out of the po
 - either an ingress calls (they are always prioritized over egress calls)
 - if no ingress calls require attention, an egress call is created and assigned to the agent.
 
-The method `evaluate_agent` will return `true` if an `idle` agent is still available after trying to present them with some calls.
-Otherwise it returns `false`, indicating the agent was not, is not, or is no longer available.
-
         on_idle_agent: (agent) ->
           debug 'Queuer.on_idle_agent', agent.key
 
@@ -176,10 +173,7 @@ We force a transition:
 
           if not await agent.transition 'evaluate'
             debug 'Queuer.on_idle_agent: precondition failed', agent.key
-
-Return falsey: `evaluate` can only be successful if the previous state was `idle` or `waiting`, so the state was not `idle` nor `waiting`, meaning (since the state was not transitioned) that the agent was not and is not available.
-
-            return false
+            return
 
 Give `on_agent` a chance to transition the agent out of the available pool.
 
@@ -259,7 +253,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
             debug 'Queuer.on_idle_agent send_to_agent: originate returned', agent.key, call.key, agent_call?.key, reason
 
             if reason?
-              await agent.set_remote_call null
+              await agent.set_remote_call null # duplicate of agent.on_hangup, but simplifies
               await agent.incr_missed()
               await agent.transition 'missed', {call,reason}
               heal call.transition 'retry'
@@ -305,8 +299,7 @@ Ingress pool
               null
 
             debug "Queuer.on_idle_agent: ingress pool, agent answered=#{answered}", agent.key
-            return true if answered is null
-            return false if answered
+            return
 
           else
             debug "Queuer.on_idle_agent: ingress pool, no matching client call", agent.key
@@ -333,8 +326,7 @@ We forcibly remove the call so that we do not end up ringing the same prospect/c
               null
 
             debug "Queuer.on_idle_agent: egress pool, agent answered=#{answered}", agent.key
-            return true if answered is null
-            return false if answered
+            return
 
           else
             debug "Queuer.on_idle_agent: egress pool, no matching client call", agent.key
