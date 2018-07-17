@@ -165,8 +165,8 @@ When an agent moves to the `idle` state, the queuer picks one call out of the po
 The method `evaluate_agent` will return `true` if an `idle` agent is still available after trying to present them with some calls.
 Otherwise it returns `false`, indicating the agent was not, is not, or is no longer available.
 
-        __evaluate_agent: (agent) ->
-          debug 'Queuer.__evaluate_agent', agent.key
+        on_idle_agent: (agent) ->
+          debug 'Queuer.on_idle_agent', agent.key
 
 ### Precondition
 
@@ -175,7 +175,7 @@ We force a transition:
 - to ensure that no other operation will proceed along the same path at the same time.
 
           if not await agent.transition 'evaluate'
-            debug 'Queuer.__evaluate_agent: precondition failed', agent.key
+            debug 'Queuer.on_idle_agent: precondition failed', agent.key
 
 Return falsey: `evaluate` can only be successful if the previous state was `idle` or `waiting`, so the state was not `idle` nor `waiting`, meaning (since the state was not transitioned) that the agent was not and is not available.
 
@@ -193,7 +193,7 @@ Return:
 
           build_call = (pool) ->
 
-            debug 'Queuer.__evaluate_agent build_call', agent.key
+            debug 'Queuer.on_idle_agent build_call', agent.key
 
 The first step is for the agent to find a suitable call in the pool.
 
@@ -203,29 +203,29 @@ The first step is for the agent to find a suitable call in the pool.
 If no call was found the agent's state is unmodified.
 
             if not call?
-              debug 'Queuer.__evaluate_agent build_call: no call found', agent.key
+              debug 'Queuer.on_idle_agent build_call: no call found', agent.key
               return null
 
             event = if call.broadcasting then 'broadcast' else 'handle'
 
             await sleep 10*Math.random()
             unless await call.transition event
-              debug 'Queuer.__evaluate_agent build_call: Error: call did not transition to handled', agent.key, call.key, event
+              debug 'Queuer.on_idle_agent build_call: Error: call did not transition to handled', agent.key, call.key, event
               return null
 
 Transition the agent.
 
-            debug 'Queuer.__evaluate_agent build_call: transition the agent', agent.key, call.key
+            debug 'Queuer.on_idle_agent build_call: transition the agent', agent.key, call.key
 
             if not await agent.transition 'present', {call}
-              debug 'Queuer.__evaluate_agent build_call: transition failed', agent.key, call.key
+              debug 'Queuer.on_idle_agent build_call: transition failed', agent.key, call.key
               return null
 
-            debug 'Queuer.__evaluate_agent build_call: transitioned', agent.key, call.key
+            debug 'Queuer.on_idle_agent build_call: transitioned', agent.key, call.key
 
 Wait a little bit (this is meant to give a popup some time to settle).
 
-            debug 'Queuer.__evaluate_agent build_call: waiting for 1.5s before originate_external', agent.key, call.key
+            debug 'Queuer.on_idle_agent build_call: waiting for 1.5s before originate_external', agent.key, call.key
             await sleep 1500-100+200*Math.random()
 
 For a dial-out (egress) call we first need to attempt to contact the destination.
@@ -233,11 +233,11 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
             await call.originate_external()
 
-            debug 'Queuer.__evaluate_agent build_call: originate external returned', agent.key, call.key
+            debug 'Queuer.on_idle_agent build_call: originate external returned', agent.key, call.key
 
             call_state = await call.state()
             unless call_state is 'handled'
-              debug 'Queuer.__evaluate_agent build_call: call state is not `handled`', agent.key, call.key, call_state
+              debug 'Queuer.on_idle_agent build_call: call state is not `handled`', agent.key, call.key, call_state
               await agent.transition 'hangup', {call}
               return null
 
@@ -252,11 +252,11 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
           send_to_agent = (pool,call) ->
 
-            debug 'Queuer.__evaluate_agent send_to_agent: originate', agent.key, call.key
+            debug 'Queuer.on_idle_agent send_to_agent: originate', agent.key, call.key
 
             {reason} = agent_call = await agent.originate_to_agent() # always from remote-call
 
-            debug 'Queuer.__evaluate_agent send_to_agent: originate returned', agent.key, call.key, agent_call?.key, reason
+            debug 'Queuer.on_idle_agent send_to_agent: originate returned', agent.key, call.key, agent_call?.key, reason
 
             if reason?
               await agent.set_remote_call null
@@ -265,7 +265,7 @@ We need to send the call to the agent (using either onhook or offhook mode).
               heal call.transition 'retry'
               return false
 
-            debug 'Queuer.__evaluate_agent send_to_agent: bridge', agent.key, call.key, agent_call.key
+            debug 'Queuer.on_idle_agent send_to_agent: bridge', agent.key, call.key, agent_call.key
 
             await agent_call.transition 'sent_to_agent'
             unless await call.bridge agent_call
@@ -275,11 +275,11 @@ We need to send the call to the agent (using either onhook or offhook mode).
               await agent.transition 'failed', {call}
               return false
 
-            debug 'Queuer.__evaluate_agent send_to_agent: Successfully bridged', agent.key, call.key, agent_call.key
+            debug 'Queuer.on_idle_agent send_to_agent: Successfully bridged', agent.key, call.key, agent_call.key
             await call.set_remote_agent agent.key
             await agent.transition 'answer', {call}
 
-### Main body for `__evaluate_agent`
+### Main body for `on_idle_agent`
 
           some_call = await agent.get_remote_call()
 
@@ -289,59 +289,59 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
 Ingress pool
 
-          debug 'Queuer.__evaluate_agent: ingress pool', agent.key
+          debug 'Queuer.on_idle_agent: ingress pool', agent.key
           ingress_pool = @ingress_pool agent.domain
 
           remote_call = await build_call.call(this,ingress_pool).catch (error) ->
-            debug.ops 'Queuer.__evaluate_agent: ingress pool, error in build_call', error.stack ? error.toString()
+            debug.ops 'Queuer.on_idle_agent: ingress pool, error in build_call', error.stack ? error.toString()
             null
 
           if remote_call?
 
-            debug 'Queuer.__evaluate_agent: ingress pool, got client call', agent.key
+            debug 'Queuer.on_idle_agent: ingress pool, got client call', agent.key
 
             answered = await send_to_agent.call(this, ingress_pool, remote_call).catch (error) ->
-              debug.ops 'Queuer.__evaluate_agent: ingress pool, error in send_to_agent', error.stack ? error.toString()
+              debug.ops 'Queuer.on_idle_agent: ingress pool, error in send_to_agent', error.stack ? error.toString()
               null
 
-            debug "Queuer.__evaluate_agent: ingress pool, agent answered=#{answered}", agent.key
+            debug "Queuer.on_idle_agent: ingress pool, agent answered=#{answered}", agent.key
             return true if answered is null
             return false if answered
 
           else
-            debug "Queuer.__evaluate_agent: ingress pool, no matching client call", agent.key
+            debug "Queuer.on_idle_agent: ingress pool, no matching client call", agent.key
 
 Egress pool
 
-          debug 'Queuer.__evaluate_agent: egress pool', agent.key
+          debug 'Queuer.on_idle_agent: egress pool', agent.key
           egress_pool = @egress_pool agent.domain
 
           remote_call = await build_call.call(this,egress_pool).catch (error) ->
-            debug.ops 'Queuer.__evaluate_agent: egress pool, error in build_call', error.stack ? error.toString()
+            debug.ops 'Queuer.on_idle_agent: egress pool, error in build_call', error.stack ? error.toString()
             null
 
           if remote_call?
 
-            debug 'Queuer.__evaluate_agent: egress pool, got client call', agent.key
+            debug 'Queuer.on_idle_agent: egress pool, got client call', agent.key
 
 We forcibly remove the call so that we do not end up ringing the same prospect/customer twice, esp. if in the first case there was no agent available.
 
             await egress_pool.remove remote_call
 
             answered = await send_to_agent.call(this, egress_pool, remote_call).catch (error) ->
-              debug.ops 'Queuer.__evaluate_agent: egress pool, error in send_to_agent', error.stack ? error.toString()
+              debug.ops 'Queuer.on_idle_agent: egress pool, error in send_to_agent', error.stack ? error.toString()
               null
 
-            debug "Queuer.__evaluate_agent: egress pool, agent answered=#{answered}", agent.key
+            debug "Queuer.on_idle_agent: egress pool, agent answered=#{answered}", agent.key
             return true if answered is null
             return false if answered
 
           else
-            debug "Queuer.__evaluate_agent: egress pool, no matching client call", agent.key
+            debug "Queuer.on_idle_agent: egress pool, no matching client call", agent.key
 
 No call
 
-          debug 'Queuer.__evaluate_agent: no call available, releasing', agent.key
+          debug 'Queuer.on_idle_agent: no call available, releasing', agent.key
           if await agent.transition 'release'
             await agent.park()
           else
@@ -409,7 +409,7 @@ Only states were the agent might transition via `evaluate` are considered as sta
 If the agent is idle, move forward in the background.
 
             when 'idle'
-              await @__evaluate_agent agent
+              await @on_idle_agent agent
 
             when 'create_call'
               await @create_egress_call_for agent
