@@ -260,8 +260,9 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             if reason?
               await agent.set_remote_call null # duplicate of agent.on_hangup, but simplifies
-              await agent.incr_missed()
-              await agent.transition 'missed', {call,reason}
+              unless call.broadcasting
+                await agent.incr_missed()
+                await agent.transition 'missed', {call,reason}
               handlers = await call.incr 'handlers', -1
               if handlers <= 0
                 heal call.transition 'retry'
