@@ -353,8 +353,9 @@ For off-hook the call already exists.
 For on-hook we need to call the agent.
 
         onhook_call = await @get_onhook_call()
+
         if onhook_call?
-          debug 'Agent.originate_to_agent: trying to create a new onhook call when one already exists', @key, onhook_call.key
+          debug.dev 'Agent.originate_to_agent: trying to create a new onhook call when one already exists', @key, onhook_call.key
           return reason: 'duplicate-onhook-call'
 
         agent_call = new @Call make_id()

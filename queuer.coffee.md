@@ -400,6 +400,9 @@ Only states were the agent might transition via `evaluate` are considered as sta
             when 'logged_out'
               await agent.reset_missed()
               await agent.clear()
+              await agent.set_offhook_call null
+              await agent.set_onhook_call null
+              await agent.set_remote_call null
 
             when 'in_call'
               await agent.reset_missed()
