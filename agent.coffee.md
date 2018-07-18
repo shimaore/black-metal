@@ -226,6 +226,7 @@ Onhook agent call was hung up
             debug 'Agent.on_hangup: on-hook agent call hung up', @key, call.key, disposition
 
             await @set_onhook_call null
+            await @set_remote_call null
 
             await nextTick()
 
@@ -242,8 +243,7 @@ Onhook agent call was hung up
                 debug.dev 'Agent.on_hangup: unexpected ACCEPT_SUPERVISED_TRANSFER on onhook_call'
                 no
               else
-                if await @transition 'agent_hangup', {call}
-                  await @disconnect_remote()
+                await @transition 'agent_hangup', {call}
 
 Offhook agent call was hung up
 
@@ -251,6 +251,7 @@ Offhook agent call was hung up
             debug 'Agent.on_hangup: off-hook agent call hung up', @key, call.key, disposition
 
             await @set_offhook_call null
+            await @set_remote_call null
 
             await nextTick()
 
@@ -265,8 +266,7 @@ Offhook agent call was hung up
                 debug.dev 'Agent.on_hangup: unexpected ACCEPT_SUPERVISED_TRANSFER on offhook_call'
                 no
               else
-                if await @transition 'logout', {call}
-                  await @disconnect_remote()
+                await @transition 'logout', {call}
 
           else
             debug 'Agent.on_hangup: other call hung up (ignored)', @key, call.key, disposition
