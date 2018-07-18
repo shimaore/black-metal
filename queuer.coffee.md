@@ -357,12 +357,14 @@ A call coming from an agent will already have gone through `set_agent` and be in
           await call.transition 'ingress'
           await @ingress_pool(domain).add call
 
-        __transition_available_agents: (event,domain) ->
-          debug 'Queuer.__transition_available_agents: start', {domain,event}
+On a newly-pooled call, we re-assess the situation of the agents in the available pool to decide where to send the call.
+
+        on_pooled_call: (event,domain) ->
+          debug 'Queuer.on_pooled_call: start', {domain,event}
           await nextTick()
           @available_agents(domain).reevaluate foot (agent) ->
             await nextTick()
-            debug 'Queuer.__transition_available_agents for agent', {agent: agent.key, event}
+            debug 'Queuer.on_pooled_call for agent', {agent: agent.key, event}
             agent.transition event
 
 Data is optional but is used by huge-play's `create-queuer-call`.
@@ -438,7 +440,7 @@ If the agent is idle, move forward in the background.
                 debug.dev 'Ignoring non-poolable call', call.key
 
             when 'pooled'
-              heal @__transition_available_agents 'new_call', domain
+              heal @on_pooled_call 'new_call', domain
 
             when 'bridged'
               await ingress_pool.remove call
