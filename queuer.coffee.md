@@ -259,7 +259,6 @@ We need to send the call to the agent (using either onhook or offhook mode).
             debug 'Queuer.on_idle_agent send_to_agent: originate returned', agent.key, call.key, agent_call?.key, reason
 
             if reason?
-              await agent.set_remote_call null # duplicate of agent.on_hangup, but simplifies
               unless call.broadcasting
                 await agent.incr_missed()
                 await agent.transition 'missed', {call,reason}
