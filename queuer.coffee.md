@@ -250,6 +250,8 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
             debug 'Queuer.on_idle_agent send_to_agent: bridge', agent.key, call.key, agent_call.key
 
+            await agent_call.transition 'track'
+
             unless await call.bridge agent_call
               heal call.remove agent_call.key # undo what was done in `call.originate_internal`
               await agent_call.hangup()
@@ -347,6 +349,7 @@ No call
         queue_ingress_call: (call) ->
           debug 'Queuer.queue_ingress_call', call.key
           await call.set_poolable()
+          await call.transition 'track'
           domain = await call.get_domain()
           await @ingress_pool(domain).add call
 
@@ -495,7 +498,7 @@ Hmmm this obviously test for some condition on the remote agent (so probably whi
 Let the call know which agent it is connected to.
 
           await call.set_local_agent new_key
-
+          await call.transition 'track'
           return
 
 Agent behavior

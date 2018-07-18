@@ -27,6 +27,7 @@ If a call is transitioned back to `new` it means it got forgotten / is in overfl
         hungup: 'dropped'
         miss: 'dropped'
         fail: 'dropped'
+        track: 'tracked'
         pool: 'pooled'
         # unpool:
         # bridge: ignored, because we only track state for pooled calls, not all calls
@@ -42,8 +43,23 @@ Only pooled calls actually get considered.
         hungup: 'dropped'
         miss: 'dropped'
         # fail:
+        track: 'tracked'
         # pool:
         unpool: 'new'
+        bridge: 'bridged'
+        # unbridge:
+        timeout: 'new'
+        timeout_duration: 31*seconds # overflow/forgotten
+
+      tracked:
+        hangup: 'dropped'
+        transferred: 'dropped'
+        hungup: 'dropped'
+        miss: 'dropped'
+        # fail:
+        # track:
+        pool: 'pooled'
+        # unpool:
         bridge: 'bridged'
         # unbridge:
         timeout: 'new'
@@ -67,7 +83,7 @@ Only pooled calls actually get considered.
         # unpool:
         bridge: 'bridged'
         # unbridge:
-        timeout: 'pooled' # forgotten
+        timeout: 'new' # re-queue
         timeout_duration: 36*seconds
 
       dropped:
@@ -75,6 +91,7 @@ Only pooled calls actually get considered.
         # miss:
         # fail:
         pool: 'pooled' # on transfer
+        track: 'tracked'
         # unpool:
         # bridge:
         # unbridge:
