@@ -35,22 +35,20 @@ Call Pool
 
         add: (call) ->
           debug 'CallPool.add', @key, call.key
-          ### istanbul ignore else ###
-          if await super call.key
-            heal call.transition 'pool'
-            @queuer.notify "pool:#{@domain}:#{@name}", "call:#{call.key}",
-              event: 'add'
-              call: call
+          await super call.key
+          heal call.transition 'pool'
+          @queuer.notify "pool:#{@domain}:#{@name}", "call:#{call.key}",
+            event: 'add'
+            call: call
           return
 
         remove: (call) ->
           debug 'CallPool.remove', @key, call.key
-          ### istanbul ignore else ###
-          if await super call.key
-            heal call.transition 'unpool'
-            @queuer.notify "pool:#{@domain}:#{@name}", "call:#{call.key}",
-              event: 'remove'
-              call: call
+          await super call.key
+          heal call.transition 'unpool'
+          @queuer.notify "pool:#{@domain}:#{@name}", "call:#{call.key}",
+            event: 'remove'
+            call: call
           return
 
         has: (call) ->
@@ -433,9 +431,9 @@ If the agent is idle, move forward in the background.
             when 'new' # aka `forgotten`
               await call.reset 'handlers'
               if await call.poolable()
-                heal ingress_pool.add call
+                await ingress_pool.add call
               else
-                debug.dev 'Ignoring non-poolable call', call.key
+                debug.dev 'Ignoring non-poolable new call', call.key
 
             when 'pooled'
               heal @on_pooled_call 'new_call', domain
