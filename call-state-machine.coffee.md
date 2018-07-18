@@ -10,6 +10,8 @@ Call Transitions
 
 Events:
 - hangup
+- transferred: from screeching-eggs
+- hungup: from screeching-eggs
 - miss : disappeared from system
 - fail: originate-external failed
 - pool
@@ -21,6 +23,8 @@ If a call is transitioned back to `new` it means it got forgotten / is in overfl
 
       new:
         hangup: 'dropped'
+        transferred: 'dropped'
+        hungup: 'dropped'
         miss: 'dropped'
         fail: 'dropped'
         pool: 'pooled'
@@ -34,6 +38,8 @@ Only pooled calls actually get considered.
 
       pooled:
         hangup: 'dropped'
+        transferred: 'dropped'
+        hungup: 'dropped'
         miss: 'dropped'
         # fail:
         # pool:
