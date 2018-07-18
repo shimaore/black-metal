@@ -196,6 +196,7 @@ Upon transitioning to the presenting state:
         missed: 'away'
         failed: 'idle'
         hangup: 'idle'
+        agent_hangup: 'idle'
 
         logout: 'logged_out'
 
