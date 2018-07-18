@@ -8,6 +8,8 @@ Agent
     make_id = ->
       Solid.time() + Solid.uniqueness()
 
+    nextTick = -> new Promise (resolve) -> process.nextTick resolve
+
     transition = require './agent-state-machine'
 
 Transfer-disposition values:
@@ -190,6 +192,9 @@ Note that `hangup` may happen in two cases:
 
         removed = await @remove call.key
 
+Notice: we `await nextTick()` for the same reason that we do it in the `transition` module: when we receive `unbridge` and `hangup` back-to-back from FreeSwitch, the transitions might fail because they overlap.
+We could also retry the transition (once or twice) to alleviate the issue.
+
         switch
 
 Remote call was hung up
@@ -199,6 +204,8 @@ Remote call was hung up
 
             await @set_remote_call null
             await call.set_remote_agent null
+
+            await nextTick()
 
             switch disposition
               when BLIND_TRANSFER
@@ -219,6 +226,8 @@ Onhook agent call was hung up
             debug 'Agent.on_hangup: on-hook agent call hung up', @key, call.key, disposition
 
             await @set_onhook_call null
+
+            await nextTick()
 
             switch disposition
               when BLIND_TRANSFER
@@ -242,6 +251,8 @@ Offhook agent call was hung up
             debug 'Agent.on_hangup: off-hook agent call hung up', @key, call.key, disposition
 
             await @set_offhook_call null
+
+            await nextTick()
 
             switch disposition
               when BLIND_TRANSFER
