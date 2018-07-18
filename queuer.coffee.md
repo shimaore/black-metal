@@ -272,7 +272,6 @@ We need to send the call to the agent (using either onhook or offhook mode).
             await agent_call.transition 'sent_to_agent'
             unless await call.bridge agent_call
               heal call.remove agent_call.key # undo what was done in `call.originate_internal`
-              await agent.set_remote_call null
               await agent_call.hangup()
               await agent.transition 'failed', {call}
               return false
