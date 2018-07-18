@@ -133,15 +133,11 @@ Remove a call-leg from the list of connected call-legs.
               when BLIND_TRANSFER
                 if await @transition 'agent_transfer', {call}
                   await call.set_remote_agent null
-                await call.transition 'transferred'
               when SUPERVISED_TRANSFER
                 if await @transition 'agent_transfer', {call}
                   await call.set_remote_agent null
-                await call.transition 'transferred'
               when ACCEPT_SUPERVISED_TRANSFER
-                await call.transition 'transferred'
-              else
-                await call.transition 'hungup'
+                yes
 
           when await @is_offhook_call call
             debug 'Agent.on_unbridge: off-hook agent disconnected', @key, call.key, disposition
@@ -151,17 +147,13 @@ Remove a call-leg from the list of connected call-legs.
               when BLIND_TRANSFER
                 if await @transition 'agent_transfer', {call}
                   await call.set_remote_agent null
-                # await call.transition 'transferred'
               when SUPERVISED_TRANSFER
                 if await @transition 'agent_transfer', {call}
                   await call.set_remote_agent null
-                # await call.transition 'transferred'
               when ACCEPT_SUPERVISED_TRANSFER
                 debug.dev 'Agent.on_unbridge: unexpected ACCEPT_SUPERVISED_TRANSFER on onhook_call'
-                # await call.transition 'transferred'
                 yes
               else
-                # await call.transition 'hungup'
                 no
 
 All calls are assumed to be "other calls".
@@ -234,11 +226,9 @@ Onhook agent call was hung up
               when BLIND_TRANSFER
                 if await @transition 'agent_transfer', {call}
                   await call.set_remote_agent null
-                await call.transition 'transferred'
               when SUPERVISED_TRANSFER
                 if await @transition 'agent_transfer', {call}
                   await call.set_remote_agent null
-                await call.transition 'transferred'
               when ACCEPT_SUPERVISED_TRANSFER
                 debug.dev 'Agent.on_hangup: unexpected ACCEPT_SUPERVISED_TRANSFER on onhook_call'
                 no

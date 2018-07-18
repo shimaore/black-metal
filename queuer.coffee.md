@@ -36,24 +36,26 @@ Call Pool
         add: (call) ->
           debug 'CallPool.add', @key, call.key
           ### istanbul ignore else ###
-          if super call.key
+          if await super call.key
             heal call.transition 'pool'
             @queuer.notify "pool:#{@domain}:#{@name}", "call:#{call.key}",
               event: 'add'
               call: call
+          return
 
         remove: (call) ->
           debug 'CallPool.remove', @key, call.key
           ### istanbul ignore else ###
-          if super call.key
+          if await super call.key
             heal call.transition 'unpool'
             @queuer.notify "pool:#{@domain}:#{@name}", "call:#{call.key}",
               event: 'remove'
               call: call
+          return
 
         has: (call) ->
           debug 'CallPool.has', @key, call.key
-          super call.key
+          await super call.key
 
         calls: ->
           debug 'CallPool.calls', @key
@@ -194,18 +196,13 @@ The first step is for the agent to find a suitable call in the pool.
             calls = await pool.calls()
             call = await agent.policy calls
 
-If no call was found the agent's state is unmodified.
-
             if not call?
               debug 'Queuer.on_idle_agent build_call: no call found', agent.key
               return null
 
-            event = if call.broadcasting then 'broadcast' else 'handle'
+            return call
 
-            await sleep 10*Math.random()
-            unless await call.transition event
-              debug 'Queuer.on_idle_agent build_call: Error: call did not transition to handled', agent.key, call.key, event
-              return null
+          transition_agent = (call) ->
 
 Transition the agent.
 
@@ -213,14 +210,9 @@ Transition the agent.
 
             if not await agent.transition 'present', {call}
               debug 'Queuer.on_idle_agent build_call: transition failed', agent.key, call.key
-              return null
+              return false
 
             debug 'Queuer.on_idle_agent build_call: transitioned', agent.key, call.key
-
-Let the call know we'll be taking care of it (soon).
-This prevents transitioning with `retry` on broadcast calls.
-
-            await call.incr 'handlers', 1
 
 Wait a little bit (this is meant to give a popup some time to settle).
 
@@ -232,25 +224,19 @@ For a dial-in (ingress) call we already have the proper call UUID.
 
             await call.originate_external()
 
-            debug 'Queuer.on_idle_agent build_call: originate external returned', agent.key, call.key
-
-            call_state = await call.state()
-            unless call_state is 'handled'
-              debug 'Queuer.on_idle_agent build_call: call state is not `handled`', agent.key, call.key, call_state
-              await agent.transition 'hangup', {call}
-              return null
+            debug 'Queuer.on_idle_agent build_call: originate external completed', agent.key, call.key
 
 Notify the agent of the caller's state.
 
             await agent.set_remote_call call
 
-            return call
+            return true
 
 ### Send to Agent
 
 We need to send the call to the agent (using either onhook or offhook mode).
 
-          send_to_agent = (pool,call) ->
+          send_to_agent = (call) ->
 
             debug 'Queuer.on_idle_agent send_to_agent: originate', agent.key, call.key
 
@@ -262,14 +248,10 @@ We need to send the call to the agent (using either onhook or offhook mode).
               unless call.broadcasting
                 await agent.incr_missed()
                 await agent.transition 'missed', {call,reason}
-              handlers = await call.incr 'handlers', -1
-              if handlers <= 0
-                heal call.transition 'retry'
               return false
 
             debug 'Queuer.on_idle_agent send_to_agent: bridge', agent.key, call.key, agent_call.key
 
-            await agent_call.transition 'sent_to_agent'
             unless await call.bridge agent_call
               heal call.remove agent_call.key # undo what was done in `call.originate_internal`
               await agent_call.hangup()
@@ -282,6 +264,8 @@ We need to send the call to the agent (using either onhook or offhook mode).
 
 ### Main body for `on_idle_agent`
 
+Clean up
+
           some_call = await agent.get_remote_call()
 
           if some_call?
@@ -293,20 +277,28 @@ Ingress pool
           debug 'Queuer.on_idle_agent: ingress pool', agent.key
           ingress_pool = @ingress_pool agent.domain
 
-          remote_call = await build_call.call(this,ingress_pool).catch (error) ->
+          remote_call = await build_call(ingress_pool).catch (error) ->
             debug.ops 'Queuer.on_idle_agent: ingress pool, error in build_call', error.stack ? error.toString()
             null
 
           if remote_call?
 
-            debug 'Queuer.on_idle_agent: ingress pool, got client call', agent.key
+            debug 'Queuer.on_idle_agent: ingress pool, got remote-call', agent.key, remote_call.key
 
-            answered = await send_to_agent.call(this, ingress_pool, remote_call).catch (error) ->
-              debug.ops 'Queuer.on_idle_agent: ingress pool, error in send_to_agent', error.stack ? error.toString()
-              null
+            handlers = await remote_call.incr 'handlers', 1
+            debug 'Queuer.on_idle_agent: ingress pool, handlers', agent.key, remote_call.key, handlers
 
-            debug "Queuer.on_idle_agent: ingress pool, agent answered=#{answered}", agent.key
-            return
+            try
+
+              if handlers is 1 or remote_call.broadcasting
+                if await transition_agent remote_call
+                  if await send_to_agent remote_call
+                    return
+
+            catch error
+              debug "Queuer.on_idle_agent: ingress pool, error", agent.key, remote_call.key, error
+
+            handlers = await remote_call.incr 'handlers', -1
 
           else
             debug "Queuer.on_idle_agent: ingress pool, no matching client call", agent.key
@@ -316,31 +308,39 @@ Egress pool
           debug 'Queuer.on_idle_agent: egress pool', agent.key
           egress_pool = @egress_pool agent.domain
 
-          remote_call = await build_call.call(this,egress_pool).catch (error) ->
+          remote_call = await build_call(egress_pool).catch (error) ->
             debug.ops 'Queuer.on_idle_agent: egress pool, error in build_call', error.stack ? error.toString()
             null
 
           if remote_call?
 
-            debug 'Queuer.on_idle_agent: egress pool, got client call', agent.key
+            debug 'Queuer.on_idle_agent: egress pool, got client call', agent.key, remote_call.key
 
 We forcibly remove the call so that we do not end up ringing the same prospect/customer twice, esp. if in the first case there was no agent available.
 
             await egress_pool.remove remote_call
 
-            answered = await send_to_agent.call(this, egress_pool, remote_call).catch (error) ->
-              debug.ops 'Queuer.on_idle_agent: egress pool, error in send_to_agent', error.stack ? error.toString()
-              null
+            handlers = await remote_call.incr 'handlers', 1
+            debug 'Queuer.on_idle_agent: egress pool, handlers', agent.key, remote_call.key, handlers
 
-            debug "Queuer.on_idle_agent: egress pool, agent answered=#{answered}", agent.key
-            return
+            try
+
+              if handlers is 1 or remote_call.broadcasting
+                if await transition_agent remote_call
+                  if await send_to_agent remote_call
+                    return
+
+            catch error
+              debug "Queuer.on_idle_agent: ingress pool, error", agent.key, remote_call.key, error
+
+            handlers = await remote_call.incr 'handlers', -1
 
           else
             debug "Queuer.on_idle_agent: egress pool, no matching client call", agent.key
 
 No call
 
-          debug 'Queuer.on_idle_agent: no call available, releasing', agent.key
+          debug 'Queuer.on_idle_agent: no call was available, releasing', agent.key
           if await agent.transition 'release'
             await agent.park()
           else
@@ -350,20 +350,16 @@ No call
           debug 'Queuer.queue_ingress_call', call.key
           await call.set_poolable()
           domain = await call.get_domain()
-
-A call coming from an agent will already have gone through `set_agent` and be in the state `handled`. We reset it back.
-
-          await call.transition 'ingress'
           await @ingress_pool(domain).add call
 
 On a newly-pooled call, we re-assess the situation of the agents in the available pool to decide where to send the call.
 
         on_pooled_call: (event,domain) ->
-          debug 'Queuer.on_pooled_call: start', {domain,event}
+          debug 'Queuer.on_pooled_call: start', domain, event
           await nextTick()
           @available_agents(domain).reevaluate foot (agent) ->
             await nextTick()
-            debug 'Queuer.on_pooled_call for agent', {agent: agent.key, event}
+            debug 'Queuer.on_pooled_call for agent', agent.key, event
             agent.transition event
 
 Data is optional but is used by huge-play's `create-queuer-call`.
@@ -435,9 +431,9 @@ If the agent is idle, move forward in the background.
           switch state
 
             when 'new' # aka `forgotten`
-              await call.set 'handlers', 0
+              await call.reset 'handlers'
               if await call.poolable()
-                await heal ingress_pool.add call
+                heal ingress_pool.add call
               else
                 debug.dev 'Ignoring non-poolable call', call.key
 
@@ -492,8 +488,6 @@ The `call` is the agent-side leg (never a remote leg).
           debug 'Queuer.set_agent', call?.key, new_key
 
           return unless call? and new_key?
-
-          await call.transition 'set_agent'
 
 Hmmm this obviously test for some condition on the remote agent (so probably while doing transfers), but it could use some description.
 

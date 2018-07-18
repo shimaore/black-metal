@@ -144,17 +144,19 @@
         await call.set_reference 'hello-again'
         await queuer.queue_ingress_call call
         await sleep 2500
+        state1 = await redis.get 'agent-lalilo@test-s'
+        state2 = await redis.get 'agent-laloli@test-s'
         in_call = 0
-        in_call += 1 if (await redis.get 'agent-lalilo@test-s') is 'in_call'
-        in_call += 1 if (await redis.get 'agent-laloli@test-s') is 'in_call'
-        chai.expect(in_call).to.equal 1
+        in_call += 1 if state1 is 'in_call'
+        in_call += 1 if state2 is 'in_call'
         waiting = 0
-        waiting += 1 if (await redis.get 'agent-lalilo@test-s') is 'waiting'
-        waiting += 1 if (await redis.get 'agent-laloli@test-s') is 'waiting'
-        chai.expect(waiting).to.equal 1
+        waiting += 1 if state1 is 'waiting'
+        waiting += 1 if state2 is 'waiting'
         ok = await lalilo.transition 'logout'
         ok = await laloli.transition 'logout'
         queuer.end()
+        chai.expect(in_call).to.equal 1
+        chai.expect(waiting).to.equal 1
         return
 
       it 'should transition on events', ->

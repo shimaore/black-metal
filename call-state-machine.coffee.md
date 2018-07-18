@@ -9,87 +9,68 @@ Call Transitions
     _transition =
 
 Events:
-- fail
+- hangup
+- miss : disappeared from system
+- fail: originate-external failed
 - pool
 - unpool
-- ingress: external ingress call is placed into the queuer
-- hangup: local call, hungup locally
-- transferred: remote call, transferred locally
-- hungup: remote call, hungup by remote end
-- miss : disappeared from system
-- retry: call presented to agent, but agent missed the call
 - bridge
 - unbridge
-- unbridge_ignore
-- broadcast
-- handle
 
 If a call is transitioned back to `new` it means it got forgotten / is in overflow.
 
       new:
         hangup: 'dropped'
-        transferred: 'dropped'
-        hungup: 'dropped'
-        miss: 'dropped' # disappeared from system
+        miss: 'dropped'
+        fail: 'dropped'
         pool: 'pooled'
-        handle: 'handled'
-        sent_to_agent: 'handled'
-        set_agent: 'handled'
+        # unpool:
+        # bridge: ignored, because we only track state for pooled calls, not all calls
+        # unbridge:
         timeout: 'new' # forgotten
         timeout_duration: 97*seconds
 
 Only pooled calls actually get considered.
 
       pooled:
-        broadcast: 'handled'
-        handle: 'handled'
         hangup: 'dropped'
-        transferred: 'dropped'
-        hungup: 'dropped'
-        miss: 'dropped' # disappeared from system
+        miss: 'dropped'
+        # fail:
+        # pool:
+        unpool: 'new'
+        bridge: 'bridged'
+        # unbridge:
         timeout: 'new'
         timeout_duration: 31*seconds # overflow/forgotten
-        unpool: 'new'
-
-      handled:
-        bridge: 'bridged'
-        broadcast: 'handled' # This allows multiple presentations of the same call.
-        fail: 'dropped'
-        hangup: 'dropped'
-        transferred: 'dropped'
-        hungup: 'dropped'
-        miss: 'dropped' # disappeared from system
-        retry: 'pooled' # force re-try
-        ingress: 'new' # external call goes through `queue_ingress_call`
-
-This might lead to multiple agents ringing even if the `broadcast` option is not active, so we delay it a little.
-
-        timeout: 'pooled' # force re-try
-        timeout_duration: 131*seconds
 
       bridged:
         hangup: 'dropped'
-        transferred: 'dropped'
-        hungup: 'dropped'
-        miss: 'dropped' # disappeared from system
-        pool: 'pooled' # ?
+        miss: 'dropped'
+        # fail:
+        pool: 'pooled'
+        # unpool:
         bridge: 'bridged' # more than one call bridged (e.g. during transfer)
-        unbridge_ignore: 'bridged' # unbridge but other remain (definitely during transfers)
         unbridge: 'unbridged'
+        # timeout:
 
       unbridged:
         hangup: 'dropped'
-        transferred: 'dropped'
-        hungup: 'dropped'
-        miss: 'dropped' # disappeared from system
-        bridge: 'bridged'
+        miss: 'dropped'
+        # fail:
         pool: 'pooled'
-        retry: 'pooled' # ?
+        # unpool:
+        bridge: 'bridged'
+        # unbridge:
         timeout: 'pooled' # forgotten
         timeout_duration: 36*seconds
 
       dropped:
+        # hangup:
+        # miss:
+        # fail:
         pool: 'pooled' # on transfer
-        retry: 'pooled' # ?
+        # unpool:
+        # bridge:
+        # unbridge:
 
     module.exports = (require './transition') 'call', initial_state, _transition
