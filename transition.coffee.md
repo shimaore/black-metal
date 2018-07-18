@@ -36,7 +36,11 @@ Handle transitions
 
         debug "#{name}/#{@key} #{old_state} ↓#{event} →#{new_state}"
         if new_state?
-          await @transition_state old_state, new_state
+          try
+            await @transition_state old_state, new_state
+          catch error
+            debug "#{name}/#{@key} #{old_state} ↓#{event} →#{new_state}", error
+            return false
 
           notification_data.old_state = old_state
           notification_data.state = new_state
