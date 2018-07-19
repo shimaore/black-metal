@@ -146,7 +146,7 @@ Other tags might be added by the application (for example to add caller-based ta
 
       constructor: (key) ->
         super key
-        debug 'new TaggedCall'
+        debug 'new TaggedCall', key
         return
 
       set_tags: (tags) ->
