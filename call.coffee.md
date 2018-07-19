@@ -157,7 +157,7 @@ Originate a call towards a third-party
 
 Ingress (or otherwise existing) call
 
-        api_id = @get_id()
+        api_id = await @get_id()
         if api_id?
           await @exists()
           return null
@@ -168,7 +168,7 @@ Egress call
 
 This is similar to what we do with `place-call` but we're calling the other way around. We're creating a brand new call which emulates a call from the endpoint.
 
-        reference = @get_reference()
+        reference = await @get_reference()
         unless reference?
           debug.dev 'originate_external: Error: missing reference', @key
           await @transition 'miss'
