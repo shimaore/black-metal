@@ -192,6 +192,8 @@ We could also retry the transition (once or twice) to alleviate the issue.
 
 Remote call was hung up
 
+Note: if the call was ever bridged, `on_unbridge` will have already cleared the remote-call, so we'll fall-through and ignore.
+
           when await @is_remote_call call
             debug 'Agent.on_hangup: queuer-managed remote call hang up', @key, call.key, disposition
 
@@ -219,7 +221,7 @@ Onhook agent call was hung up
             debug 'Agent.on_hangup: on-hook agent call hung up', @key, call.key, disposition
 
             await @set_onhook_call null
-            await @set_remote_call null
+            await @set_remote_call null # maybe
 
             await nextTick()
 
@@ -242,7 +244,7 @@ Offhook agent call was hung up
             debug 'Agent.on_hangup: off-hook agent call hung up', @key, call.key, disposition
 
             await @set_offhook_call null
-            await @set_remote_call null
+            await @set_remote_call null # maybe
 
             await nextTick()
 
@@ -466,7 +468,6 @@ Notify start of wrapup time to an agent
         if current_call?
           await current_call.hangup()
           await current_call.set_remote_agent null
-          await @set_remote_call null
 
 Tools
 -----
