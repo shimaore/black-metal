@@ -63,6 +63,8 @@ Only pooled calls actually get considered.
 
       bridged:
         hangup: 'dropped'
+        # transferred:
+        hungup: 'dropped'
         miss: 'dropped'
         pool: 'pooled'
         # unpool:
@@ -72,6 +74,8 @@ Only pooled calls actually get considered.
 
       unbridged:
         hangup: 'dropped'
+        # transferred:
+        hungup: 'dropped'
         miss: 'dropped'
         track: 'tracked'
         pool: 'pooled'
