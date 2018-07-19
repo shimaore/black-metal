@@ -12,8 +12,7 @@ Events:
 - hangup
 - transferred: from screeching-eggs
 - hungup: from screeching-eggs
-- miss : disappeared from system
-- fail: originate-external failed
+- miss : disappeared from system / originate-external failed
 - pool
 - unpool
 - bridge
@@ -26,7 +25,6 @@ If a call is transitioned back to `new` it means it got forgotten / is in overfl
         transferred: 'dropped'
         hungup: 'dropped'
         miss: 'dropped'
-        fail: 'dropped'
         track: 'tracked'
         pool: 'pooled'
         # unpool:
@@ -42,7 +40,6 @@ Only pooled calls actually get considered.
         transferred: 'dropped'
         hungup: 'dropped'
         miss: 'dropped'
-        # fail:
         track: 'tracked'
         # pool:
         unpool: 'new'
@@ -56,7 +53,6 @@ Only pooled calls actually get considered.
         transferred: 'dropped'
         hungup: 'dropped'
         miss: 'dropped'
-        # fail:
         # track:
         pool: 'pooled'
         # unpool:
@@ -68,7 +64,6 @@ Only pooled calls actually get considered.
       bridged:
         hangup: 'dropped'
         miss: 'dropped'
-        # fail:
         pool: 'pooled'
         # unpool:
         bridge: 'bridged' # more than one call bridged (e.g. during transfer)
@@ -78,7 +73,6 @@ Only pooled calls actually get considered.
       unbridged:
         hangup: 'dropped'
         miss: 'dropped'
-        # fail:
         track: 'tracked'
         pool: 'pooled'
         # unpool:
@@ -90,7 +84,6 @@ Only pooled calls actually get considered.
       dropped:
         # hangup:
         # miss:
-        # fail:
         pool: 'pooled' # on transfer
         track: 'tracked'
         # unpool:

@@ -215,7 +215,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
           await @set_reference reference
           this
         else
-          await @transition 'fail'
+          await @transition 'miss'
           null
 
       bridge: (agent_call) ->
