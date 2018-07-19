@@ -8,6 +8,7 @@ Agent
     make_id = ->
       Solid.time() + Solid.uniqueness()
 
+    sleep = (timeout) -> new Promise (resolve) -> setTimeout resolve, timeout
     nextTick = -> new Promise (resolve) -> process.nextTick resolve
 
     transition = require './agent-state-machine'
@@ -357,15 +358,80 @@ For on-hook we need to call the agent.
         agent_call = new @Call make_id()
         await agent_call.set_domain @domain
         await agent_call.set_local_agent @key
-        await @set_onhook_call agent_call
 
         remote = await @get_remote_call()
-        reason = await agent_call.originate_internal remote
+        unless remote?
+          debug.dev 'Agent.originate_to_agent: missing remote-call', @key
+          return reason: 'missing-remote-call'
+
+        await @set_onhook_call agent_call
+        reason = await agent_call.originate_internal remote, @key
         if reason?
           debug 'Agent.originate_to_agent failed', @key, agent_call.key, reason
+          await @set_onhook_call null
           return {reason}
 
         return agent_call
+
+Originate a call from an agent
+------------------------------
+
+      originate_remote_call: (call) ->
+        debug 'Agent.originate_remote_call', @key, call.key
+
+        unless await @transition 'present', {call}
+          debug 'Agent.originate_remote_call: transition failed', @key, call.key
+          return false
+
+Wait a little bit (this is meant to give a popup some time to settle).
+
+        debug 'Agent.originate_remote_call: waiting for 1.5s before originate_external', @key, call.key
+        await sleep 1500-100+200*Math.random()
+
+        unless 'presenting' is await @state()
+          debug 'Agent.originate_remote_call: state changed while waiting', @key, call.key
+          return false
+
+For a dial-out (egress) call we attempt to contact the destination.
+For a dial-in (ingress) call we already have the proper call-id.
+
+        unless call.originate_external()
+          debug 'Agent.originate_remote_call: originate-external failed', @key, call.key
+          await @transition 'failed', {call}
+          return false
+
+        @set_remote_call call
+        return true
+
+Connect a remote call
+---------------------
+
+      connect_remote_call: (call) ->
+        debug 'Agent.connect_remote_call', @key, call.key
+
+        {reason} = agent_call = await @originate_to_agent()
+
+        debug 'Agent.connect_remote_call', @key, call.key, agent_call?.key, reason
+
+        if reason?
+          unless call.broadcasting
+            await @incr_missed()
+            await @transition 'missed', {call,reason}
+          return false
+
+        debug 'Agent.connect_remote_call: bridge', @key, call.key, agent_call.key
+
+        await agent_call.transition 'track'
+
+        unless await call.bridge agent_call
+          await agent_call.hangup()
+          await @transition 'failed', {call}
+          return false
+
+        debug 'Agent.connect_remote_call: Successfully bridged', @key, call.key, agent_call.key
+        await call.set_remote_agent @key
+        await @transition 'answer', {call}
+
 
 Park an agent, indicating end-of-call + end-of-wrapup
 -----------------------------------------------------

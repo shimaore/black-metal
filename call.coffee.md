@@ -88,17 +88,6 @@ The `reference` is set either:
         source = await caller.get_remote_number()
         source ?= 'caller'
 
-Agent in off-hook mode
-
-        api_id = await @get_id()
-        if api_id?
-          if await @exists()
-            return null
-          else
-            return 'DOES NOT EXIST'
-
-Agent in on-hook mode
-
         id = @key
 
         alert_info = await caller.get_alert_info()
@@ -216,13 +205,22 @@ This is similar to what we do with `place-call` but we're calling the other way 
         agent_call_id = await agent_call.get_id()
         debug 'QueuerCall.bridge', @key, agent_call_id
 
-        ### istanbul ignore next ###
-        throw new Error "QueuerCall.bridge #{@key} (#{agent_call.key}) misses agent_call id" unless agent_call_id?
+        unless agent_call_id?
+          debug.dev "QueuerCall.bridge: misses agent-call id", @key, agent_call.key
+          return false
+
+Add our call to the matched set on the caller's side so that we can stop the call(s) if the caller hangs up
+or (in case of multiple presentations) when someone picks the call up.
+
+        await @add agent_call_id
 
         await @api "uuid_break #{@key}"
         await @api "uuid_broadcast #{agent_call_id} gentones::%(100,20,400);%(100,0,600) aleg"
         await sleep 400
-        await @api "uuid_bridge #{@key} #{agent_call_id}"
+        outcome = await @api "uuid_bridge #{@key} #{agent_call_id}"
+        unless outcome
+          await @remove agent_call_id
+        outcome
 
 Remove all the matched calls, except maybe one.
 

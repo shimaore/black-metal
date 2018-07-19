@@ -3,10 +3,6 @@
 
     {debug,foot,heal} = (require 'tangible') @name
 
-    sleep = (timeout) ->
-      new Promise (resolve) ->
-        setTimeout resolve, timeout
-
     nextTick = ->
       new Promise (resolve) ->
         process.nextTick resolve
@@ -200,68 +196,6 @@ The first step is for the agent to find a suitable call in the pool.
 
             return call
 
-          transition_agent = (call) ->
-
-Transition the agent.
-
-            debug 'Queuer.on_idle_agent build_call: transition the agent', agent.key, call.key
-
-            if not await agent.transition 'present', {call}
-              debug 'Queuer.on_idle_agent build_call: transition failed', agent.key, call.key
-              return false
-
-            debug 'Queuer.on_idle_agent build_call: transitioned', agent.key, call.key
-
-Wait a little bit (this is meant to give a popup some time to settle).
-
-            debug 'Queuer.on_idle_agent build_call: waiting for 1.5s before originate_external', agent.key, call.key
-            await sleep 1500-100+200*Math.random()
-
-For a dial-out (egress) call we first need to attempt to contact the destination.
-For a dial-in (ingress) call we already have the proper call UUID.
-
-            await call.originate_external()
-
-            debug 'Queuer.on_idle_agent build_call: originate external completed', agent.key, call.key
-
-Notify the agent of the caller's state.
-
-            await agent.set_remote_call call
-
-            return true
-
-### Send to Agent
-
-We need to send the call to the agent (using either onhook or offhook mode).
-
-          send_to_agent = (call) ->
-
-            debug 'Queuer.on_idle_agent send_to_agent: originate', agent.key, call.key
-
-            {reason} = agent_call = await agent.originate_to_agent() # always from remote-call
-
-            debug 'Queuer.on_idle_agent send_to_agent: originate returned', agent.key, call.key, agent_call?.key, reason
-
-            if reason?
-              unless call.broadcasting
-                await agent.incr_missed()
-                await agent.transition 'missed', {call,reason}
-              return false
-
-            debug 'Queuer.on_idle_agent send_to_agent: bridge', agent.key, call.key, agent_call.key
-
-            await agent_call.transition 'track'
-
-            unless await call.bridge agent_call
-              heal call.remove agent_call.key # undo what was done in `call.originate_internal`
-              await agent_call.hangup()
-              await agent.transition 'failed', {call}
-              return false
-
-            debug 'Queuer.on_idle_agent send_to_agent: Successfully bridged', agent.key, call.key, agent_call.key
-            await call.set_remote_agent agent.key
-            await agent.transition 'answer', {call}
-
 ### Main body for `on_idle_agent`
 
 Clean up
@@ -291,8 +225,8 @@ Ingress pool
             try
 
               if handlers is 1 or remote_call.broadcasting
-                if await transition_agent remote_call
-                  if await send_to_agent remote_call
+                if await agent.originate_remote_call remote_call
+                  if await agent.connect_remote_call remote_call
                     await remote_call.reset 'handlers'
                     return
 
@@ -327,8 +261,8 @@ We forcibly remove the call so that we do not end up ringing the same prospect/c
             try
 
               if handlers is 1 or remote_call.broadcasting
-                if await transition_agent remote_call
-                  if await send_to_agent remote_call
+                if await agent.originate_remote_call remote_call
+                  if await agent.connect_remote_call remote_call
                     await remote_call.reset 'handlers'
                     return
 
