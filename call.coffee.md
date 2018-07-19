@@ -157,10 +157,12 @@ Originate a call towards a third-party
 
 Ingress (or otherwise existing) call
 
-        api_id = await @get_id()
-        if api_id?
-          await @exists()
-          return null
+        switch await @exists()
+          when true
+            return this
+          when false
+            debug 'QueuerCall.originate_external: existing call is missing', @key
+            return null
 
 Egress call
 
