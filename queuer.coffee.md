@@ -439,7 +439,7 @@ If the agent is idle, move forward in the background.
                 debug.dev 'Ignoring non-poolable new call', call.key
 
             when 'pooled'
-              heal @on_pooled_call 'new_call', domain
+              await @on_pooled_call 'new_call', domain
 
             when 'bridged'
               await ingress_pool.remove call
