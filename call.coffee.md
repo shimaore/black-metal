@@ -178,7 +178,7 @@ Ingress (or otherwise existing) call
         api_id = @get_id()
         if api_id?
           await @exists()
-          return
+          return null
 
 Egress call
 
@@ -216,7 +216,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
           this
         else
           await @transition 'fail'
-          return
+          null
 
       bridge: (agent_call) ->
         agent_call_id = await agent_call.get_id()

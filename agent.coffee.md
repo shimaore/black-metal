@@ -302,7 +302,13 @@ Start of an off-hook session for the agent (used by huge-play)
         debug 'Agent.accept_offhook', call_uuid
         call = new @Call call_uuid
         await call.set_domain @domain
-        await @on_unbridge call, 'accept_offhook'
+
+Remove the call from the list of active calls, so that it doesn't get disconnected.
+
+        await @on_unbridge call, 'accept_offhook', null
+
+Hangup any other (potential) offhook call.
+
         await @__hangup_offhook()
 
 Attempt to transition to login with the call-id.
