@@ -79,6 +79,7 @@ Only pooled calls actually get considered.
         hangup: 'dropped'
         miss: 'dropped'
         # fail:
+        track: 'tracked'
         pool: 'pooled'
         # unpool:
         bridge: 'bridged'
