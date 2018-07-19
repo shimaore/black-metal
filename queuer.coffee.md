@@ -293,6 +293,7 @@ Ingress pool
               if handlers is 1 or remote_call.broadcasting
                 if await transition_agent remote_call
                   if await send_to_agent remote_call
+                    await remote_call.reset 'handlers'
                     return
 
             catch error
@@ -328,6 +329,7 @@ We forcibly remove the call so that we do not end up ringing the same prospect/c
               if handlers is 1 or remote_call.broadcasting
                 if await transition_agent remote_call
                   if await send_to_agent remote_call
+                    await remote_call.reset 'handlers'
                     return
 
             catch error
