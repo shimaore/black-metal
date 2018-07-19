@@ -24,7 +24,6 @@
             return null if created++ > 0
             call = new TestCall 'testing123'
             await call.set_domain 'test'
-            await call.set_destination '33643482771'
             await call.set_reference 'hello-world'
             await call.add_tag 'skill:sales'
             setTimeout (-> call.transition 'dropped'), 2500
@@ -44,7 +43,7 @@
 
       profile = 'booh!'
       class Reference
-        get_destination: -> Promise.resolve 'hello'
+        get_destination: -> Promise.resolve '33643482771'
         get_domain: -> Promise.resolve 'handy-bear'
         get_source: -> Promise.resolve 'famous-candy'
         set_endpoint: -> Promise.resolve yes

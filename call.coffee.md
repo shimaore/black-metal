@@ -34,10 +34,8 @@ It should implement features similar to the ones found in the `api` object of `h
 
       api: (args...) -> @__api.truthy args...
 
-      set_destination: (destination) ->
-        debug 'set_destination', @key, destination
-        @set 'destination', destination
-      get_destination: -> @get 'destination'
+The `id` should only be set iff the call exists in the system.
+
       set_id: (id) ->
         debug 'set_id', @key, id
         @set 'id', id
@@ -74,8 +72,7 @@ The `caller` object is the remote Call object.
 
 Returns a string indicating the error in case of failure; null in case of success.
 
-      originate_internal: (caller) ->
-        destination = await @get_destination()
+      originate_internal: (caller,destination) ->
         debug 'QueuerCall.originate_internal', @key, destination
 
 The `reference` is set either:
@@ -154,7 +151,6 @@ where reason might be:
         connected = body?[0] is '+'
 
         if connected
-          await @set_destination null
           await @set_id id
           await @set_reference reference
           return null
@@ -167,11 +163,8 @@ where reason might be:
 Originate a call towards a third-party
 --------------------------------------
 
-The `reference` ID is stored as the `destination` field.
-
       originate_external: ->
-        destination = await @get_destination()
-        debug 'QueuerCall.originate_external', @key, destination
+        debug 'QueuerCall.originate_external', @key
 
 Ingress (or otherwise existing) call
 
@@ -184,9 +177,13 @@ Egress call
 
         id = @key
 
-This is similar to what we do with `place-call` but we're calling the other way around. The `estination` consists of the reference, and we're creating a brand new call which emulates a call from the endpoint.
+This is similar to what we do with `place-call` but we're calling the other way around. We're creating a brand new call which emulates a call from the endpoint.
 
-        reference = destination
+        reference = @get_reference()
+        unless reference?
+          debug.dev 'originate_external: Error: missing reference', @key
+          await @transition 'miss'
+          return null
 
         my_reference = new @Reference reference
         destination = await my_reference.get_destination()
@@ -209,10 +206,7 @@ This is similar to what we do with `place-call` but we're calling the other way 
         params = make_params params
 
         if await @api "originate {#{params}}sofia/#{@profile}/#{destination}@#{domain} &park"
-          await @set_destination null
           await @set_id id
-          await @set_domain domain
-          await @set_reference reference
           this
         else
           await @transition 'miss'
@@ -265,7 +259,6 @@ with the gentones notifications.
         if api_id?
           await @api("uuid_kill #{api_id}").catch -> yes
         await @set_id null
-        await @set_destination null
         await @transition 'hangup'
 
       announce: (file) ->

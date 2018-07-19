@@ -356,7 +356,6 @@ For on-hook we need to call the agent.
 
         agent_call = new @Call make_id()
         await agent_call.set_domain @domain
-        await agent_call.set_destination @key
         await agent_call.set_local_agent @key
         await @set_onhook_call agent_call
 
