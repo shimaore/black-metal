@@ -227,7 +227,7 @@ or (in case of multiple presentations) when someone picks the call up.
 Remove all the matched calls, except maybe one.
 
       unbridge_except: (except = null) ->
-        debug 'Call.unbridge_except', @key, except
+        debug 'QueuerCall.unbridge_except', @key, except
         self = this
         await @forEach foot (id) ->
           return if id is except
@@ -235,7 +235,7 @@ Remove all the matched calls, except maybe one.
           await self.remove id
 
       park: ->
-        debug 'Call.park', @key
+        debug 'QueuerCall.park', @key
         # result = await @api "uuid_park #{@key}"
 
 Actually there is no need to park the call for real, this only creates issues
@@ -248,13 +248,13 @@ with the gentones notifications.
         result
 
       wrapup: ->
-        debug 'Call.wrapup', @key
+        debug 'QueuerCall.wrapup', @key
         await sleep 400
         await @api "uuid_broadcast #{@key} gentones::%(100,20,600);%(100,0,400) aleg"
         await sleep 400
 
       hangup: ->
-        debug 'Call.hangup', @key
+        debug 'QueuerCall.hangup', @key
         api_id = await @get_id()
         if api_id?
           await @api("uuid_kill #{api_id}").catch -> yes
@@ -262,7 +262,7 @@ with the gentones notifications.
         await @transition 'hangup'
 
       announce: (file) ->
-        debug 'Call.announce', @key, file
+        debug 'QueuerCall.announce', @key, file
         await @api "uuid_broadcast #{@key} #{file}"
 
       presenting: ->
@@ -323,7 +323,7 @@ with the gentones notifications.
 Local-Agent: the agent attached to this call leg. Can only be set, once.
 
       set_local_agent: (agent_key) ->
-        debug 'Call.set_local_agent', @key, agent_key
+        debug 'QueuerCall.set_local_agent', @key, agent_key
         unless agent_key?
           debug.dev 'Error: Can only set (not deleted) the local-agent', @key, agent_key
           return
@@ -344,7 +344,7 @@ Local-Agent: the agent attached to this call leg. Can only be set, once.
 Remote-Agent: the agent attached to another call leg, presumably bridged to this one.
 
       set_remote_agent: (agent_key) ->
-        debug 'Call.set_remote_agent', @key, agent_key
+        debug 'QueuerCall.set_remote_agent', @key, agent_key
 
         if agent_key?
           reference = await @get_reference()
