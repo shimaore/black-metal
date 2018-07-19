@@ -368,7 +368,6 @@ For on-hook we need to call the agent.
         reason = await agent_call.originate_internal remote, @key
         if reason?
           debug 'Agent.originate_to_agent failed', @key, agent_call.key, reason
-          await @set_onhook_call null
           return {reason}
 
         return agent_call
