@@ -1,3 +1,2 @@
---compilers coffee.md:coffee-script/register
 --reporter spec
 --recursive

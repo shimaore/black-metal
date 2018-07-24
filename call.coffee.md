@@ -1,23 +1,13 @@
 class Call: a call from or towards a customer or agent
 =====
 
-    @name = 'black-metal:call'
-    {debug,hand,heal} = (require 'tangible') @name
-    seem = require 'seem'
-    Solid = require 'solid-gun'
-    RedisClient = require 'normal-key/client'
-
-    seconds = 1000
-    minutes = 60*seconds
+    {debug,foot,heal} = (require 'tangible') 'black-metal:call'
 
 Keep these under the shortest state-machine timer, currently 59s.
 
     progress_timeout = 18
     internal_timeout = 22
     external_timeout = 30
-
-    make_id = ->
-      Solid.time() + Solid.uniqueness()
 
     make_params = (data) ->
       ("#{k}=#{v}" for own k,v of data).join ','
@@ -26,178 +16,90 @@ Keep these under the shortest state-machine timer, currently 59s.
       new Promise (resolve) ->
         setTimeout resolve, timeout
 
-    nextTick = ->
-      new Promise (resolve) ->
-        process.nextTick resolve
+QueuerCall
+----------
 
-    class Call extends RedisClient
+    Call = require 'screeching-eggs/call'
+    transition = require './call-state-machine'
+
+    class QueuerCall extends Call
 
 The following field MUST be provided by an implementation class.
 It should implement features similar to the ones found in the `api` object of `huge-play/middleware/setup`.
-(Currently we rely on `api.truthy`, `api.monitor`, and `api.is_monitored`.)
+(Currently we rely on `api()` and `api.truthy()`.)
 
       __api: null
+      queuer: null
+      Reference: null
 
       api: (args...) -> @__api.truthy args...
 
-      constructor: (queuer,domain,{destination,id,key}) ->
+The `id` should only be set iff the call exists in the system.
 
-        throw new Error 'Call requires queuer' unless queuer?.is_a_queuer?()
-        throw new Error 'Call requires domain' unless domain?
+      set_id: (id) ->
+        debug 'set_id', @key, id
+        @set 'id', id
+      get_id: -> @get 'id'
 
-Load an existing call profile back.
-
-        if key?
-          debug 'new Call', domain, key
-          super 'call', key
-
-Create a new profile
-
-        else
-          unless destination? or id?
-            throw new Error 'new Call: either destination or id is required'
-          debug 'new Call', domain, destination, id
-          super 'call', id ? make_id()
-
-        @queuer = queuer
-        @domain = domain
-        @destination = destination
-        @id = id
-
-        @__bridged_key = "#{@class_name}-#{@key}-Sb"
-
-`new Call` MUST be followed by either `.save()` or `.load()`.
-
-      save: seem ->
-        debug 'Call.save', @key
-        yield @set 'domain', @domain
-        yield @set 'destination', @destination
-        yield @set 'id', @id
-        this
-
-      load: seem ->
-        debug 'Call.load', @key
-        @domain = yield @get 'domain'
-        @destination = yield @get 'destination'
-        @id = yield @get 'id'
-        this
-
-      exists: seem ->
-        if @id?
-          if yield @api "uuid_exists #{@id}"
+      exists: ->
+        api_id = await @get_id()
+        if api_id?
+          if await @api "uuid_exists #{api_id}"
             true
           else
-            yield @transition 'miss'
+            await @transition 'miss'
             false
         else
           null
 
-      report: ->
+      notify: ->
 
 Handle transitions
 ------------------
 
-      transition: seem (event, notification_data = {}) ->
-        debug 'Call.transition', {call: @key, event}
-        yield @load()
+      transition: transition
 
-        old_state = yield @state()
-
-        unless old_state?
-          yield @transition_state old_state, initial_state
-          old_state = initial_state
-
-        debug 'Call.transition', {call: @key, event, old_state}
-
-        unless old_state of _transition
-          yield @transition_state old_state, initial_state
-          throw new Error "Invalid state, transition from #{old_state} → event #{event}"
-
-        unless event of _transition[old_state]
-          debug "Ignoring event #{event} in state #{old_state}", {call: @key}
-          return false
-
-        new_state = _transition[old_state][event]
-
-        @queuer.clear_timer @key
-
-        unless new_state of _transition
-          yield @transition_state old_state, initial_state
-          throw new Error "Invalid state machine, transition from #{old_state} → event #{event} leads to unknown state #{new_state}"
-
-        debug 'Call.transition', {call: @key, event, old_state, new_state}
-        if new_state?
-          yield @transition_state old_state, new_state
-
-          notification_data.old_state = old_state
-          notification_data.state = new_state
-          notification_data.event = event
-
-          yield @report? notification_data
-          next_state = _transition[new_state]
-          if 'timeout' of next_state and 'timeout_duration' of next_state
-            on_timeout = =>
-              @queuer.clear_timer @key
-              heal @transition 'timeout'
-            @queuer.set_timer @key, setTimeout on_timeout, next_state.timeout_duration-500+1000*Math.random()
-
-          yield nextTick()
-          heal @queuer.on_call this, notification_data
-
-          return true
-        else
-          return false
+      post_process: (notification_data) -> @queuer.on_call this, notification_data
 
 Originate a call towards an agent
 ---------------------------------
 
 Make sure to define the `api` method` and the `profile` member.
 
-The destination endpoint is stored as the `@destination` field.
+The destination endpoint is stored as the `destination` field.
 
 The `caller` object is the remote Call object.
 
 Returns a string indicating the error in case of failure; null in case of success.
 
-      originate_internal: seem (caller) ->
-        debug 'Call.originate_internal', @key, @destination
+      originate_internal: (caller,destination) ->
+        debug 'QueuerCall.originate_internal', @key, destination
 
 The `reference` is set either:
 - by huge-play/middleware/client/fifo for an ingress call;
 - by originate_external (below) for a successful egress call.
 
-        reference = yield caller.get_reference()
+        reference = await caller.get_reference()
 
         unless reference?
-          debug.dev 'Call.originate_internal: caller has no reference', caller.key, @key, @destination
+          debug.dev 'QueuerCall.originate_internal: caller has no reference', caller.key, @key, destination
           return 'NO REFERENCE'
 
-        source = yield caller.get_remote_number()
+        source = await caller.get_remote_number()
         source ?= 'caller'
-
-Agent in off-hook mode
-
-        if @id?
-          if yield @exists()
-            return null
-          else
-            return 'DOES NOT EXIST'
-
-Agent in on-hook mode
 
         id = @key
 
-        alert_info = yield caller.get_alert_info()
+        alert_info = await caller.get_alert_info()
 
-        endpoint = @destination
+        endpoint = destination
 
         xref = "xref:#{reference}"
 
         my_reference = new @Reference reference
-        yield my_reference.set_endpoint endpoint
-        yield my_reference.add_in endpoint
+        await my_reference.set_endpoint endpoint
 
-        music = yield caller.get_music()
+        music = await caller.get_music()
 
         params =
           origination_uuid: id
@@ -206,7 +108,7 @@ Agent in on-hook mode
           park_after_bridge: true
           progress_timeout: progress_timeout
           originate_timeout: internal_timeout
-          'sip_h_X-En': @destination # Centrex-only
+          'sip_h_X-En': endpoint # Centrex-only
           alert_info: alert_info
           sip_invite_params: xref
           sip_invite_to_params: xref
@@ -221,9 +123,9 @@ Originates towards (presumably) OpenSIPS.
 Add our call to the matched set on the caller's side so that we can stop the call(s) if the caller hangs up
 or (in case of multiple presentations) when someone picks the call up.
 
-        yield caller.add id
+        await caller.add id
 
-        body = yield @__api "originate {#{params}}sofia/#{@profile}/#{@destination} &park"
+        body = await @__api "originate {#{params}}sofia/#{@profile}/#{destination} &park"
 
 Typically the body might contain:
 - `+OK <uuid>\n`
@@ -234,46 +136,50 @@ where reason might be:
 - `RECOVERY_ON_TIMER_EXPIRE` - phone is unreachable
 - etc.
 
+        debug 'originate_internal: originate returned', @key, id, body
         connected = body?[0] is '+'
 
         if connected
-          @destination = null
-          @id = id
-          yield @save()
-          yield @set_reference reference
+          await @set_id id
+          await @set_reference reference
           return null
         else
           reason = body?.substr(5).trimRight 1
           reason ?= 'FAILED'
-          yield caller.remove id
+          await caller.remove id
           return reason
 
 Originate a call towards a third-party
 --------------------------------------
 
-The `reference` ID is stored as the `@destination` field.
-
-      originate_external: seem ->
-        debug 'Call.originate_external', @key, @destination
+      originate_external: ->
+        debug 'QueuerCall.originate_external', @key
 
 Ingress (or otherwise existing) call
 
-        if @id?
-          yield @exists()
-          return
+        switch await @exists()
+          when true
+            return this
+          when false
+            debug 'QueuerCall.originate_external: existing call is missing', @key
+            return null
 
 Egress call
 
         id = @key
 
-This is similar to what we do with `place-call` but we're calling the other way around. The `destination` consists of the reference, and we're creating a brand new call which emulates a call from the endpoint.
+This is similar to what we do with `place-call` but we're calling the other way around. We're creating a brand new call which emulates a call from the endpoint.
 
-        reference = @destination
+        reference = await @get_reference()
+        unless reference?
+          debug.dev 'originate_external: Error: missing reference', @key
+          await @transition 'miss'
+          return null
 
         my_reference = new @Reference reference
-        destination = yield my_reference.get_destination()
-        domain = yield my_reference.get_domain()
-        source = yield my_reference.get_source()
+        destination = await my_reference.get_destination()
+        domain = await my_reference.get_domain()
+        source = await my_reference.get_source()
 
         xref = "xref:#{reference}"
         params =
@@ -290,90 +196,77 @@ This is similar to what we do with `place-call` but we're calling the other way 
 
         params = make_params params
 
-        if yield @api "originate {#{params}}sofia/#{@profile}/#{destination}@#{domain} &park"
-          @destination = null
-          @id = id
-          yield @save()
-          yield @set_reference reference
+        if await @api "originate {#{params}}sofia/#{@profile}/#{destination}@#{domain} &park"
+          await @set_id id
           this
         else
-          yield @transition 'fail'
-          return
+          await @transition 'miss'
+          null
 
-      bridge: seem (agent_call) ->
-        debug 'Call.bridge', @id, agent_call.id
-        yield @api "uuid_break #{@id}"
-        yield @api "uuid_broadcast #{agent_call.id} gentones::%(100,20,400);%(100,0,600) aleg"
-        yield sleep 400
-        yield @api "uuid_bridge #{@id} #{agent_call.id}"
+      bridge: (agent_call) ->
+        agent_call_id = await agent_call.get_id()
+        debug 'QueuerCall.bridge', @key, agent_call_id
+
+        unless agent_call_id?
+          debug.dev "QueuerCall.bridge: misses agent-call id", @key, agent_call.key
+          return false
+
+Add our call to the matched set on the caller's side so that we can stop the call(s) if the caller hangs up
+or (in case of multiple presentations) when someone picks the call up.
+
+        await @add agent_call_id
+
+        await @api "uuid_break #{@key}"
+        await @api "uuid_broadcast #{agent_call_id} gentones::%(100,20,400);%(100,0,600) aleg"
+        await sleep 400
+        outcome = await @api "uuid_bridge #{@key} #{agent_call_id}"
+        unless outcome
+          await @remove agent_call_id
+        outcome
 
 Remove all the matched calls, except maybe one.
 
-      unbridge_except: seem (except = null) ->
-        debug 'Call.unbridge_except', @id, except
+      unbridge_except: (except = null) ->
+        debug 'QueuerCall.unbridge_except', @key, except
         self = this
-        yield @forEach hand (id) ->
+        await @forEach foot (id) ->
           return if id is except
-          yield self.api("uuid_kill #{id}").catch -> yes
-          yield self.remove id
+          await self.api("uuid_kill #{id}").catch -> yes
+          await self.remove id
 
-      park: seem ->
-        debug 'Call.park', @id
-        # result = yield @api "uuid_park #{@id}"
+      park: ->
+        debug 'QueuerCall.park', @key
+        # result = await @api "uuid_park #{@key}"
 
 Actually there is no need to park the call for real, this only creates issues
 with the gentones notifications.
 
         result = true
-        yield sleep 100
-        yield @api "uuid_broadcast #{@id} gentones::%(100,20,400);%(100,0,400) aleg"
-        yield sleep 400
+        await sleep 100
+        await @api "uuid_broadcast #{@key} gentones::%(100,20,400);%(100,0,400) aleg"
+        await sleep 400
         result
 
-      wrapup: seem ->
-        debug 'Call.wrapup', @id
-        yield sleep 400
-        yield @api "uuid_broadcast #{@id} gentones::%(100,20,600);%(100,0,400) aleg"
-        yield sleep 400
+      wrapup: ->
+        debug 'QueuerCall.wrapup', @key
+        await sleep 400
+        await @api "uuid_broadcast #{@key} gentones::%(100,20,600);%(100,0,400) aleg"
+        await sleep 400
 
-      on_bridge: seem (b_call,data) ->
-        data ?= call: b_call
-        yield @interface.add @__bridged_key, b_call.key
-        @transition 'bridge', data
+      hangup: ->
+        debug 'QueuerCall.hangup', @key
+        api_id = await @get_id()
+        if api_id?
+          await @api("uuid_kill #{api_id}").catch -> yes
+        await @set_id null
+        await @transition 'hangup'
 
-      on_unbridge: seem (b_call,disposition) ->
-        data = call: b_call
-        yield @interface.remove @__bridged_key, b_call.key
-        if 0 is yield @interface.count @__bridged_key
-          @transition 'unbridge', data
-        else
-          @transition 'unbridge_ignore', data
+      announce: (file) ->
+        debug 'QueuerCall.announce', @key, file
+        await @api "uuid_broadcast #{@key} #{file}"
 
-      hangup: seem ->
-        debug 'Call.hangup', @id
-        if @id?
-          yield @api("uuid_kill #{@id}").catch -> yes
-        @id = null
-        @destination = null
-        yield @save()
-        yield @transition 'hangup'
-
-      monitor: (events...) ->
-        debug 'Call.monitor', @id, events
-        return null unless @id?
-        @__api.monitor @id, events
-
-      is_monitored: ->
-        debug 'Call.is_monitored', @id
-        return null unless @id?
-        @__api.is_monitored @id
-
-      announce: seem (file) ->
-        debug 'Call.announce', @id, file
-        yield @api "uuid_broadcast #{@id} #{file}"
-
-      presenting: seem ->
-        count = yield @count()
+      presenting: ->
+        count = await @count()
         count > 0
 
       answered: ->
@@ -409,6 +302,12 @@ with the gentones notifications.
       get_reference: ->
         @get 'reference'
 
+      set_domain: (domain) ->
+        @set 'domain', domain
+
+      get_domain: ->
+        @get 'domain'
+
       set_session: (session) ->
         @set 'session', session
 
@@ -421,19 +320,22 @@ with the gentones notifications.
       get_music: ->
         @get 'music'
 
-Local-Agent: the agent attached to this call leg. Can only be set once.
+Local-Agent: the agent attached to this call leg. Can only be set, once.
 
-      set_local_agent: seem (agent) ->
-        debug 'Call.set_local_agent', @key, agent
-
-        current = yield @get_local_agent()
-        return if agent is current
-
-        if current?
-          debug.dev 'Error: Can only set local-agent once', @key, current, agent
+      set_local_agent: (agent_key) ->
+        debug 'QueuerCall.set_local_agent', @key, agent_key
+        unless agent_key?
+          debug.dev 'Error: Can only set (not deleted) the local-agent', @key, agent_key
           return
 
-        yield @set 'local-agent', agent
+        current = await @get_local_agent()
+        return if agent_key is current
+
+        if current?
+          debug.dev 'Error: Can only set local-agent once', @key, current, agent_key
+          return
+
+        await @set 'local-agent', agent_key
         return
 
       get_local_agent: ->
@@ -441,103 +343,18 @@ Local-Agent: the agent attached to this call leg. Can only be set once.
 
 Remote-Agent: the agent attached to another call leg, presumably bridged to this one.
 
-      set_remote_agent: seem (agent) ->
-        debug 'Call.set_remote_agent', @key, agent
+      set_remote_agent: (agent_key) ->
+        debug 'QueuerCall.set_remote_agent', @key, agent_key
 
-        if agent?
-          reference = yield @get_reference()
+        if agent_key?
+          reference = await @get_reference()
           my_reference = new @Reference reference
-          yield my_reference.set_endpoint agent
-          yield my_reference.add_in agent
+          await my_reference.set_endpoint agent_key
 
-        yield @set 'remote-agent', agent
+        await @set 'remote-agent', agent_key
         return
 
       get_remote_agent: ->
         @get 'remote-agent'
 
-Call Transitions
-----------------
-
-    initial_state = 'new'
-
-    _transition =
-
-Events:
-- fail
-- pool
-- unpool
-- hangup: local call, hungup locally
-- transferred: remote call, transferred locally
-- hungup: remote call, hungup by remote end
-- miss : disappeared from system
-- bridge
-- unbridge
-- unbridge_ignore
-- broadcast
-- handle
-
-If a call is transitioned back to `new` it means it got forgotten / is in overflow.
-
-      new:
-        hangup: 'dropped'
-        transferred: 'dropped'
-        hungup: 'dropped'
-        miss: 'dropped' # disappeared from system
-        pool: 'pooled'
-        handle: 'handled'
-        timeout: 'new' # forgotten
-        timeout_duration: 97*seconds
-
-Only pooled calls actually get considered.
-
-      pooled:
-        broadcast: 'handled'
-        handle: 'handled'
-        hangup: 'dropped'
-        transferred: 'dropped'
-        hungup: 'dropped'
-        miss: 'dropped' # disappeared from system
-        timeout: 'new'
-        timeout_duration: 31*seconds # overflow/forgotten
-        unpool: 'new'
-
-      handled:
-        bridge: 'bridged'
-        broadcast: 'handled'
-        fail: 'dropped'
-        hangup: 'dropped'
-        transferred: 'dropped'
-        hungup: 'dropped'
-        miss: 'dropped' # disappeared from system
-        pool: 'pooled' # force re-try
-
-This might lead to multiple agents ringing even if the `broadcast` option is not active, so we delay it a little.
-
-        timeout: 'pooled' # force re-try
-        timeout_duration: 131*seconds
-
-      bridged:
-        hangup: 'dropped'
-        transferred: 'dropped'
-        hungup: 'dropped'
-        miss: 'dropped' # disappeared from system
-        pool: 'pooled'
-        bridge: 'bridged' # more than one call bridged (e.g. during transfer)
-        unbridge_ignore: 'bridged' # unbridge but other remain (definitely during transfers)
-        unbridge: 'unbridged'
-
-      unbridged:
-        hangup: 'dropped'
-        transferred: 'dropped'
-        hungup: 'dropped'
-        miss: 'dropped' # disappeared from system
-        bridge: 'bridged'
-        pool: 'pooled'
-        timeout: 'pooled' # forgotten
-        timeout_duration: 31*seconds
-
-      dropped:
-        pool: 'pooled' # on transfer
-
-    module.exports = Call
+    module.exports = QueuerCall

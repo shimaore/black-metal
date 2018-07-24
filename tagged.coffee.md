@@ -1,9 +1,7 @@
 Tagging in the queuer
 =====================
 
-    @name = 'black-metal:tagged-call'
-    debug = (require 'tangible') @name
-    seem = require 'seem'
+    debug = (require 'tangible') 'black-metal:tagged-call'
     Bluebird = require 'bluebird'
 
 Policy
@@ -11,33 +9,35 @@ Policy
 
 The policy is:
 
-    policy = seem (calls) ->
-      agent_state = yield @state()
-      agent_broadcast = yield @has_tag 'broadcast'
-      agent_domain = @domain
+    policy = (calls) ->
+      agent_state = await @state()
+      agent_broadcast = await @has_tag 'broadcast'
       agent_key = @key
       agent_has_tag = (tag) => @has_tag tag
 
-      filtered = yield Bluebird.filter calls, seem (call) ->
+      filtered = await Bluebird.filter calls, (call) ->
 
-        debug 'Checking call for agent', call.key, agent_key
+        debug 'policy:filtered: Checking call for agent', call.key, agent_key
 
-        call_state = yield call.state()
+        call_state = await call.state()
 
         switch call_state
           when 'pooled'
+            call_broadcast = await call.broadcast()
+            call.broadcasting = call_broadcast
             yes
 
           when 'handled'
 
 Do not make parallel attempts for calls that have no id (outbound calls).
 
-            unless call.id?
+            call_id = await call.get_id()
+            unless call_id?
               return false
 
-            call_broadcast = yield call.broadcast()
+            call_broadcast = await call.broadcast()
             unless call_broadcast or agent_broadcast
-              debug 'Call is already being handled', call.key, agent_key
+              debug 'policy:filtered: Call is already being handled', call.key, agent_key
               return false
 
             call.broadcasting = true
@@ -46,38 +46,34 @@ Do not make parallel attempts for calls that have no id (outbound calls).
 
         call.waiting = if call_state is 'handled' then 0 else 1
 
-        call_tags = new Set yield call.tags()
+        call_tags = new Set await call.tags()
 
-- domains must match (this should always be true)
-
-        unless in_domain call_tags, agent_domain
-          debug.dev 'No domain match', call.key, agent_key, agent_domain, call_tags
-          return false
+- domains must match (this is now ensured by the call pools)
 
 - if at least one queue is listed, the agent must accept calls from (one of) these queue(s)
 
         call_queues = queues call_tags
-        debug 'Checking agent for queues', call.key, agent_key, call_queues
+        debug 'policy:filtered: Checking agent for queues', call.key, agent_key, call_queues
         if call_queues.length > 0
           ok = false
           for queue_tag in call_queues when not ok
-            if yield agent_has_tag queue_tag
+            if await agent_has_tag queue_tag
               ok = true
           unless ok
-            debug 'No queues match', call.key, agent_key, call_queues
+            debug 'policy:filtered: No queues match', call.key, agent_key, call_queues
             return false
 
 - the agent must have all the skills listed for the call
 
         call_required_skills = skills call_tags
-        debug 'Checking agent for skills', call.key, agent_key, call_required_skills
+        debug 'policy:filtered: Checking agent for skills', call.key, agent_key, call_required_skills
         for skill_tag in call_required_skills
-          unless yield agent_has_tag skill_tag
-            debug 'No skill match', call.key, agent_key, skill_tag
+          unless await agent_has_tag skill_tag
+            debug 'policy:filtered: No skill match', call.key, agent_key, skill_tag
             return false
 
         call.priority = priority call_tags
-        debug 'Call priority assigned', call.key, call.priority
+        debug 'policy:filtered: Call priority assigned', call.key, call.priority
 
         return true
 
@@ -100,7 +96,9 @@ Do not make parallel attempts for calls that have no id (outbound calls).
           return -1
         (a_prio - b_prio) or waiting or fifo
 
-      sorted[0]
+      policed_call = sorted[0]
+      debug 'policy selected call', policed_call
+      policed_call
 
 Keep the highest priority value
 
@@ -135,9 +133,6 @@ Keep the highest priority value
       debug 'queues', result
       result
 
-    in_domain = (tags,domain) ->
-      tags.has "number_domain:#{domain}"
-
 Tagged Call
 -----------
 
@@ -145,28 +140,24 @@ See queue-based tagging in huge-play/middleware/client/fifo for an example.
 
 Other tags might be added by the application (for example to add caller-based tags).
 
-    Call = require './call'
+    QueuerCall = require './call'
 
-    class TaggedCall extends Call
+    class TaggedCall extends QueuerCall
 
-      constructor: (queuer,domain,opts) ->
-        super queuer, domain, opts
-        debug 'new TaggedCall'
-        @started_at = new Date().getTime()
+      constructor: (key) ->
+        super key
+        debug 'new TaggedCall', key
+        return
 
-      set_tags: seem (tags) ->
-        yield @clear_tags()
-        yield @add_tags tags
+      set_tags: (tags) ->
+        await @clear_tags()
+        await @add_tags tags
 
-      save: ->
-        super().then seem (self) ->
-          yield self.set 'started-at', self.started_at
-          self
+      set_started_at: ->
+        @set 'started-at', new Date().getTime()
 
-      load: ->
-        super().then seem (self) ->
-          self.started_at = yield self.get 'started-at'
-          self
+      get_started_at: ->
+        @get 'started-at'
 
 Tagged Agent
 ------------
