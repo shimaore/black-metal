@@ -223,20 +223,28 @@ Onhook agent call was hung up
             await @set_onhook_call null
             await @set_remote_call null # maybe
 
-            await nextTick()
+Sometimes when the agent hangs up, the `unbridge` and the `hangup` messages arrive too close, and the transition for the `hangup` message will fail (and the call is stuck in `wrap_up` state, typically). So we delay the `hangup` message a little, and retry if needed.
+
+            await sleep 50
+
+            twice = (what) ->
+              await what() or (
+                await sleep 100
+                await what()
+              )
 
             switch disposition
               when BLIND_TRANSFER
-                if await @transition 'agent_transfer', {call}
+                if await twice => @transition 'agent_transfer', {call}
                   await call.set_remote_agent null
               when SUPERVISED_TRANSFER
-                if await @transition 'agent_transfer', {call}
+                if await twice => @transition 'agent_transfer', {call}
                   await call.set_remote_agent null
               when ACCEPT_SUPERVISED_TRANSFER
                 debug.dev 'Agent.on_hangup: unexpected ACCEPT_SUPERVISED_TRANSFER on onhook_call'
                 no
               else
-                await @transition 'agent_hangup', {call}
+                await twice => @transition 'agent_hangup', {call}
 
 Offhook agent call was hung up
 
