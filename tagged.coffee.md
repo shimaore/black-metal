@@ -27,20 +27,6 @@ The policy is:
             call.broadcasting = call_broadcast
             yes
 
-          when 'handled'
-
-Do not make parallel attempts for calls that have no id (outbound calls).
-
-            call_id = await call.get_id()
-            unless call_id?
-              return false
-
-            call_broadcast = await call.broadcast()
-            unless call_broadcast or agent_broadcast
-              debug 'policy:filtered: Call is already being handled', call.key, agent_key
-              return false
-
-            call.broadcasting = true
           else
             return false
 
