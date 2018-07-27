@@ -30,7 +30,6 @@ The policy is:
           else
             return false
 
-        call.waiting = if call_state is 'handled' then 0 else 1
 
         call_tags = new Set await call.tags()
 
