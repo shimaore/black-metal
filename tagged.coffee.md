@@ -63,47 +63,10 @@ The policy is:
 
         return true
 
-      sorted = filtered.sort (a,b) ->
-
-        a_prio = a.priority
-        b_prio = b.priority
-        waiting = a.waiting - b.waiting
-        fifo = a.started_at - b.started_at
-
-- sort higher priority calls first
-- calls which are not being presented yet get preference
-- equal priority calls are presented first-in first-out
-
-        if not a_prio? and not b_prio?
-          return fifo
-        if a_prio? and not b_prio?
-          return 1
-        if b_prio? and not a_prio?
-          return -1
-        (a_prio - b_prio) or waiting or fifo
-
+      sorted = filtered.sort prio_fifo_sort
       policed_call = sorted[0]
       debug 'policy selected call', policed_call
       policed_call
-
-Keep the highest priority value
-
-    priority = (tags) ->
-      debug 'priority'
-      result = []
-      tags.forEach (tag) ->
-        if m = tag.match /^priority:(\d+)$/
-          result.push parseInt m[1], 10
-      priorities = result.sort (a,b) ->
-        switch
-          when not a?
-            1
-          when not b?
-            -1
-          else
-            b-a
-      debug 'priority', priorities[0]
-      priorities[0] ? null
 
     skills = (tags) ->
       debug 'skills'
@@ -154,3 +117,5 @@ Tagged Agent
       policy: policy
 
     module.exports = {policy,TaggedCall,TaggedAgent}
+    prio_fifo_sort = require './prio-fifo-sort'
+    priority = require './priority'
