@@ -30,6 +30,7 @@ The policy is:
           else
             return false
 
+        call.started_at = await call.get_started_at()
 
         call_tags = new Set await call.tags()
 
