@@ -11,7 +11,6 @@ The policy is:
 
     policy = (calls) ->
       agent_state = await @state()
-      agent_broadcast = await @has_tag 'broadcast'
       agent_key = @key
       agent_has_tag = (tag) => @has_tag tag
 
