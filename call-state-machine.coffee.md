@@ -45,7 +45,7 @@ Only pooled calls actually get considered.
         unpool: 'new'
         bridge: 'bridged'
         # unbridge:
-        timeout: 'new'
+        timeout: 'pooled'
         timeout_duration: 31*seconds # overflow/forgotten
 
       tracked:
