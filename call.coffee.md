@@ -275,6 +275,9 @@ with the gentones notifications.
       set_answered: ->
         @set 'answered', true
 
+      expect_answer: ->
+        @set 'answered', false
+
       broadcast: ->
         @has_tag 'broadcast'
 

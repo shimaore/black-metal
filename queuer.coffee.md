@@ -370,6 +370,7 @@ If the agent is idle, move forward in the background.
             when 'new' # aka `forgotten`
               await call.reset 'handlers'
               if await call.poolable()
+                await call.expect_answer()
                 await ingress_pool.add call
               else
                 debug.dev 'Ignoring non-poolable new call', call.key
