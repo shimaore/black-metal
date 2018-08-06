@@ -284,6 +284,7 @@ No call
 
         queue_ingress_call: (call) ->
           debug 'Queuer.queue_ingress_call', call.key
+          await call.expect_answer()
           await call.set_poolable()
           await call.transition 'track'
           domain = await call.get_domain()
@@ -316,6 +317,9 @@ The call instance is created using data found e.g. in a database, the (egress) c
           else
             debug 'Queuer.create_egress_call_for: no call', agent.key
             await agent.transition 'not_created'
+
+Called after an agent state-transition
+--------------------------------------
 
         on_agent: (agent,data) ->
           {state} = data
@@ -353,6 +357,9 @@ If the agent is idle, move forward in the background.
 
           return
 
+Called after a call state-transition
+------------------------------------
+
         on_call: (call,data) ->
           {state} = data
           debug 'Queuer.on_call', call.key, state
@@ -370,7 +377,6 @@ If the agent is idle, move forward in the background.
             when 'new' # aka `forgotten`
               await call.reset 'handlers'
               if await call.poolable()
-                await call.expect_answer()
                 await ingress_pool.add call
               else
                 debug.dev 'Ignoring non-poolable new call', call.key
@@ -400,6 +406,9 @@ Do not automatically close the agent's call (in `dropped`) when a remote party h
               await call.unbridge_except()
 
           return
+
+Timers
+------
 
         clear_timer: (key) ->
           if @__timers[key]?
