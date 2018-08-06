@@ -318,6 +318,9 @@ The call instance is created using data found e.g. in a database, the (egress) c
             debug 'Queuer.create_egress_call_for: no call', agent.key
             await agent.transition 'not_created'
 
+Called after an agent state-transition
+--------------------------------------
+
         on_agent: (agent,data) ->
           {state} = data
           debug 'Queuer.on_agent', agent.key, state
@@ -353,6 +356,9 @@ If the agent is idle, move forward in the background.
               await @create_egress_call_for agent
 
           return
+
+Called after a call state-transition
+------------------------------------
 
         on_call: (call,data) ->
           {state} = data
@@ -400,6 +406,9 @@ Do not automatically close the agent's call (in `dropped`) when a remote party h
               await call.unbridge_except()
 
           return
+
+Timers
+------
 
         clear_timer: (key) ->
           if @__timers[key]?
