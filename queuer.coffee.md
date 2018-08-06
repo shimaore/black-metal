@@ -284,6 +284,7 @@ No call
 
         queue_ingress_call: (call) ->
           debug 'Queuer.queue_ingress_call', call.key
+          await call.expect_answer()
           await call.set_poolable()
           await call.transition 'track'
           domain = await call.get_domain()
@@ -370,7 +371,6 @@ If the agent is idle, move forward in the background.
             when 'new' # aka `forgotten`
               await call.reset 'handlers'
               if await call.poolable()
-                await call.expect_answer()
                 await ingress_pool.add call
               else
                 debug.dev 'Ignoring non-poolable new call', call.key
