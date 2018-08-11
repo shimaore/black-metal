@@ -404,12 +404,12 @@ Wait a little bit (this is meant to give a popup some time to settle).
 For a dial-out (egress) call we attempt to contact the destination.
 For a dial-in (ingress) call we already have the proper call-id.
 
-        unless call.originate_external()
+        unless await call.originate_external()
           debug 'Agent.originate_remote_call: originate-external failed', @key, call.key
           await @transition 'failed', {call}
           return false
 
-        @set_remote_call call
+        await @set_remote_call call
         return true
 
 Connect a remote call
