@@ -403,7 +403,11 @@ Do not automatically close the agent's call (in `dropped`) when a remote party h
             when 'dropped'
               await ingress_pool.remove call
               await egress_pool.remove call
-              await call.unbridge_except()
+
+Unbridge other legs, except for an egress call (dialer) which is connected to no-one.
+
+              if await call.get_id()
+                await call.unbridge_except()
 
           return
 
