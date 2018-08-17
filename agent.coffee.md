@@ -103,6 +103,7 @@ Unbridge might happens because of transfers or because of hang-up.
 Remove a call-leg from the list of connected call-legs.
 
         removed = await @remove call.key
+        count = await @count()
 
         switch
 
@@ -163,8 +164,6 @@ All calls are assumed to be "other calls".
             debug 'Agent.on_unbridge: other call disconnected', @key, call.key, disposition
             events.emit [@key,'external','unbridge'], call, disposition, our_call
 
-            count = await @count()
-
             if removed and count is 0
               debug 'Agent.on_unbridge: last call was removed', @key, count, call.key, disposition
               await @transition 'end_of_calls'
@@ -182,8 +181,6 @@ Note that `hangup` may happen in two cases:
 
       on_hangup: (call,disposition) ->
         debug 'Agent.on_hangup', @key, call.key, disposition
-
-        removed = await @remove call.key
 
 Notice: we `await nextTick()` for the same reason that we do it in the `transition` module: when we receive `unbridge` and `hangup` back-to-back from FreeSwitch, the transitions might fail because they overlap.
 We could also retry the transition (once or twice) to alleviate the issue.
