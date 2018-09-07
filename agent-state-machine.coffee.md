@@ -193,6 +193,7 @@ Upon transitioning to the presenting state:
       presenting:
 
         answer: 'in_call'
+        bridge: 'busy' # glare condition: agent calling in/out while we start presenting
         missed: 'away'
         failed: 'idle'
         hangup: 'idle'
