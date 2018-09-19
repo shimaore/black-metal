@@ -82,9 +82,9 @@ Available agents
         interface: redis_interface
 
         add: (agent) ->
-          debug 'AgentPool.add', @key, agent.key
           score = await agent.get_missed().catch -> 0.0
-          score += Math.random()/100
+          score += Math.random()*10
+          debug 'AgentPool.add', @key, agent.key, score
           @sorted_add agent.key, score
 
         remove: (agent) ->
