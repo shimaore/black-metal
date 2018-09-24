@@ -51,13 +51,16 @@ Call Pool
           debug 'CallPool.has', @key, call.key
           await super call.key
 
-        calls: ->
+        calls: (must_exist) ->
           debug 'CallPool.calls', @key
           result = []
           queuer = @queuer
           domain = @domain
-          await @forEach (key) ->
+          await @forEach (key) =>
             call = new Call key
+            if must_exist and false is await call.exists()
+              @remove call
+              return
             await call.set_domain domain
             result.push call
           debug 'CallPool.calls', @key, result.map (c) -> c.key
@@ -181,13 +184,13 @@ Return:
 - a Call (towards or from a selected third-party),
 - or `null`.
 
-          build_call = (pool) ->
+          build_call = (pool,must_exist) ->
 
             debug 'Queuer.on_idle_agent build_call', agent.key
 
 The first step is for the agent to find a suitable call in the pool.
 
-            calls = await pool.calls()
+            calls = await pool.calls must_exist
             call = await agent.policy calls
 
             if not call?
@@ -206,12 +209,12 @@ Clean up
             debug.dev 'Error: Agent was idle/waiting but still had a remote call', agent.key, some_call.key
           await agent.set_remote_call null
 
-Ingress pool
+#### Ingress pool
 
           debug 'Queuer.on_idle_agent: ingress pool', agent.key
           ingress_pool = @ingress_pool agent.domain
 
-          remote_call = await build_call(ingress_pool).catch (error) ->
+          remote_call = await build_call(ingress_pool,true).catch (error) ->
             debug.ops 'Queuer.on_idle_agent: ingress pool, error in build_call', error.stack ? error.toString()
             null
 
@@ -238,12 +241,12 @@ Ingress pool
           else
             debug "Queuer.on_idle_agent: ingress pool, no matching client call", agent.key
 
-Egress pool
+#### Egress pool
 
           debug 'Queuer.on_idle_agent: egress pool', agent.key
           egress_pool = @egress_pool agent.domain
 
-          remote_call = await build_call(egress_pool).catch (error) ->
+          remote_call = await build_call(egress_pool,false).catch (error) ->
             debug.ops 'Queuer.on_idle_agent: egress pool, error in build_call', error.stack ? error.toString()
             null
 
@@ -274,7 +277,7 @@ We forcibly remove the call so that we do not end up ringing the same prospect/c
           else
             debug "Queuer.on_idle_agent: egress pool, no matching client call", agent.key
 
-No call
+#### No call
 
           debug 'Queuer.on_idle_agent: no call was available, releasing', agent.key
           if await agent.transition 'release'
