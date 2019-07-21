@@ -2,7 +2,6 @@ Tagging in the queuer
 =====================
 
     debug = (require 'tangible') 'black-metal:tagged-call'
-    Bluebird = require 'bluebird'
 
 Policy
 ------
@@ -14,7 +13,7 @@ The policy is:
       agent_key = @key
       agent_has_tag = (tag) => @has_tag tag
 
-      filtered = await Bluebird.filter calls, (call) ->
+      filter = (call) ->
 
         debug 'policy:filtered: Checking call for agent', call.key, agent_key
 
@@ -61,6 +60,11 @@ The policy is:
         debug 'policy:filtered: Call priority assigned', call.key, call.priority
 
         return true
+
+      filtered = []
+      for call in calls
+        if await filter call
+          filtered.push call
 
       sorted = filtered.sort prio_fifo_sort
       policed_call = sorted[0]

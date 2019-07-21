@@ -21,20 +21,19 @@
     "huge-play": ">=32.0.1"
   },
   "devDependencies": {
-    "chai": "^4.1.2",
-    "coffeescript": "^2.3.0",
-    "coveralls": "^3.0.1",
-    "ioredis": "^3.2.2",
-    "mocha": "^5.1.1",
-    "nyc": "^12.0.2"
+    "chai": "^4.2.0",
+    "coffeescript": "^2.4.1",
+    "coveralls": "^3.0.5",
+    "ioredis": "^4.11.2",
+    "mocha": "^6.2.0",
+    "nyc": "^14.1.1"
   },
   "dependencies": {
-    "bluebird": "^3.5.1",
     "eventemitter2": "^5.0.1",
-    "normal-key": "^3.1.0",
-    "screeching-eggs": "^1.1.1",
-    "solid-gun": "^1.0.0",
-    "tangible": "^2.0.0"
+    "normal-key": "^3.2.0",
+    "screeching-eggs": "^1.2.0",
+    "solid-gun": "^1.1.0",
+    "tangible": "^3.1.0"
   },
   "publishConfig": {
     "tag": "latest"
