@@ -64,7 +64,7 @@ The `agent_hangup` event is triggered:
 The complete event is triggered:
 - mode A: if the agent acknowledges the wrap-up (TUI or GUI)
 - mode B: if the agents hangs up or acknowledges the wrap-up (GUI)
-Note: if the agent previously hung-up the wrap-up can only be ack'ed via the GUI.
+Note: if the agent previously hung-up the wrap-up can be ack'ed via the TUI by dialing `815`.
 
 ### Event: timeout
 
@@ -165,7 +165,7 @@ The busy state is active when an agent's phone is active but on a call not relat
       busy:
 
         bridge: 'busy'
-        end_of_calls: 'idle'
+        end_of_calls: 'wrap_up'
         logout: 'logged_out_busy'
 
 ### State: away
@@ -209,7 +209,7 @@ Upon transitioning to the presenting state:
         unbridge: 'wrap_up'
         force_hangup: 'wrap_up'
         agent_hangup: 'idle'
-        agent_transfer: 'idle'
+        agent_transfer: 'wrap_up'
 
         logout: 'logged_out'
 
@@ -219,7 +219,7 @@ Upon transitioning to the presenting state:
 
         complete: 'idle'
         agent_hangup: 'idle'
-        agent_transfer: 'idle' # in case the 'hangup' event arrives first
+        agent_transfer: 'wrap_up' # in case the 'hangup' event arrives first
 
         logout: 'logged_out'
 

@@ -18,7 +18,7 @@
   "author": "Stéphane Alnet <stephane@shimaore.net> (https://stephane.shimaore.net/)",
   "license": "Unlicense",
   "peerDependency": {
-    "huge-play": ">=32.0.1"
+    "huge-play": ">=41.0.0"
   },
   "devDependencies": {
     "chai": "^4.2.0",
