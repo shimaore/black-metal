@@ -20,9 +20,9 @@ The `logout` event is triggered by:
 - mode A: agent hangs up the call to the queuer.
 - mode B: agent logs out (TUI or GUI) and there are no remaining groups they belong to.
 
-### Event: start-of-call
+### Event: bridge
 
-The `start_of_call` event is triggered when a call outside of the queuer is presented or sent by the agent, making it unavailable to take new calls, without logging them out of the queuer.
+The `bridge` event is triggered when a call is connected to the agent.
 
 ### Event: end-of-calls
 
@@ -222,5 +222,7 @@ Upon transitioning to the presenting state:
         agent_transfer: 'wrap_up' # in case the 'hangup' event arrives first
 
         logout: 'logged_out'
+        login: 'idle'
+        bridge: 'busy'
 
     module.exports = (require './transition') 'agent', initial_state, _transition
